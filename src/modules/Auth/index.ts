@@ -1,6 +1,5 @@
-/**
- * Auth Module - Public API
- */
-
-export * from './screens/WelcomeScreen';
-export * from './screens/SignupScreen';
+export { SignupScreen } from './screens/SignupScreen';
+export { WelcomeScreen } from './screens/WelcomeScreen';
+export { AuthHeader } from './components/AuthHeader';
+export { SignupForm } from './components/SignupForm';
+export * from './types';
