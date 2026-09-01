@@ -14,17 +14,6 @@ Asegúrate de contar con el siguiente entorno instalado en tu máquina:
 
 ---
 
-## 📥 2. Clonado del Repositorio e Instalación
-
-Abre tu terminal y ejecuta los siguientes comandos:
-
-```bash
-# 1. Clonar el repositorio
-git clone <URL-DEL-REPOSITORIO>
-
-# 2. Entrar a la carpeta del proyecto
-cd LESCOnect
-
 # 3. Instalar las dependencias exactas del proyecto
 npm install --legacy-peer-deps
 ```

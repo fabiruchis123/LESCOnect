@@ -5,10 +5,15 @@ import { createJSONStorage, persist, StateStorage } from 'zustand/middleware';
 export interface User {
   id: string;
   name: string;
-  email: string;
+  nombre?: string;
+  apellidos?: string;
+  cedula?: string;
+  telefono?: string;
+  fechaNacimiento?: string;
+  contactoEmergencia?: string;
+  email?: string;
   avatarUrl?: string;
   role?: string;
-  phone?: string;
 }
 
 export interface AuthState {
@@ -53,9 +58,17 @@ const mmkvStateStorage: StateStorage = {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      user: null,
-      token: null,
-      isAuthenticated: false,
+      user: {
+        id: 'user-demo-1',
+        name: 'Pamela Leiva',
+        nombre: 'Pamela',
+        apellidos: 'Leiva',
+        cedula: '1-1234-5678',
+        telefono: '8888-8888',
+        contactoEmergencia: '8765-4321',
+      },
+      token: 'demo-token',
+      isAuthenticated: true,
       isLoading: false,
 
       login: (user: User, token: string) =>
@@ -76,7 +89,7 @@ export const useAuthStore = create<AuthState>()(
 
       updateUser: (partialUser: Partial<User>) =>
         set((state) => ({
-          user: state.user ? { ...state.user, ...partialUser } : null,
+          user: state.user ? { ...state.user, ...partialUser } : (partialUser as User),
         })),
 
       setLoading: (isLoading: boolean) => set({ isLoading }),
@@ -92,4 +105,3 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
-
