@@ -23,8 +23,14 @@ export function SignupScreen({ onSuccess }: SignupScreenProps) {
         {
           id: Date.now().toString(),
           name: fullName,
+          nombre: values.name,
+          apellidos: values.apellidos,
           cedula: values.cedula,
           phone: values.phone,
+          telefono: values.phone,
+          fechaNacimiento: values.birthDate,
+          emergencyContact: values.emergencyContact,
+          contactoEmergencia: values.emergencyContact,
         },
         'token-lesconect-persistent'
       );

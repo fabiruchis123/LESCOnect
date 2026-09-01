@@ -3,7 +3,7 @@ import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
-import { LescoVideoModal, LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
 
 export function WelcomeScreen() {
   const router = useRouter();

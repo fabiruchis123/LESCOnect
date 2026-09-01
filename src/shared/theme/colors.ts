@@ -1,7 +1,30 @@
-/**
- * LESCOnect - Paleta Tierra (Design System)
- * Diseñado para alto contraste y visibilidad bajo la luz solar directa.
- */
+// Paleta "Tierra" — LesConecte, Guía Visual
+export const colors = {
+  background: '#FBF6EE',
+  surface: '#FFFFFF',
+  surface2: '#F3EADA',
+  line: '#EAE0D0',
+
+  ink: '#2B241C',      // texto principal
+  inkDim: '#7A6E5C',   // texto secundario — piso mínimo de contraste
+
+  terracota: '#B5551A', // acento principal — acción, alerta
+  salvia: '#5C7A5C',    // confirmación, subtítulos/CC activo
+  coral: '#C0392B',     // errores, alertas críticas
+
+  white: '#FFFFFF',
+} as const;
+
+export const colorsOutdoorMode = {
+  ...colors,
+  line: '#000000',
+  terracota: '#8F3D0F',
+  salvia: '#3D5A3D',
+  coral: '#9E2A1D',
+} as const;
+
+export type ColorToken = keyof typeof colors;
+
 export const Colors = {
   primary: {
     main: '#B5551A',

@@ -4,11 +4,17 @@ import { createJSONStorage, persist, StateStorage } from 'zustand/middleware';
 export interface User {
   id: string;
   name: string;
+  nombre?: string;
+  apellidos?: string;
   cedula?: string;
+  phone?: string;
+  telefono?: string;
+  fechaNacimiento?: string;
+  emergencyContact?: string;
+  contactoEmergencia?: string;
   email?: string;
   avatarUrl?: string;
   role?: string;
-  phone?: string;
 }
 
 export interface AuthState {
@@ -75,12 +81,16 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: {
         id: '1',
-        name: 'Pamela',
+        name: 'Génesis Pamela',
+        nombre: 'Génesis Pamela',
+        apellidos: 'Leiva Gómez',
         cedula: '5-0454-0188',
-        email: 'pamela@lesconect.cr',
+        telefono: '8888-8888',
+        phone: '8888-8888',
+        contactoEmergencia: '8765-4321',
       },
       token: 'mock-token-lesconect',
-      isAuthenticated: true, // Sesión activa para previsualización inmediata
+      isAuthenticated: true,
       isLoading: false,
 
       login: (user: User, token: string) =>
@@ -101,7 +111,7 @@ export const useAuthStore = create<AuthState>()(
 
       updateUser: (partialUser: Partial<User>) =>
         set((state) => ({
-          user: state.user ? { ...state.user, ...partialUser } : null,
+          user: state.user ? { ...state.user, ...partialUser } : (partialUser as User),
         })),
 
       setLoading: (isLoading: boolean) => set({ isLoading }),

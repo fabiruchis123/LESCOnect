@@ -45,7 +45,7 @@ export function ProfileScreen() {
             </View>
             <View style={profileStyles.infoRow}>
               <Text style={profileStyles.infoLabel}>📱 Teléfono:</Text>
-              <Text style={profileStyles.infoValue}>{user?.phone || 'Sin registrar'}</Text>
+              <Text style={profileStyles.infoValue}>{user?.phone || user?.telefono || 'Sin registrar'}</Text>
             </View>
             <View style={profileStyles.infoRow}>
               <Text style={profileStyles.infoLabel}>🔒 Sesión:</Text>
