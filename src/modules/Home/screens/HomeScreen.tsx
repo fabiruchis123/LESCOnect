@@ -3,6 +3,7 @@ import { ScrollView, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
+import { haptics } from '@/shared/utils/haptics';
 import { HomeHeader } from '../components/HomeHeader';
 import { TranslatorHeroCard } from '../components/TranslatorHeroCard';
 import { EmergencyBanner } from '../components/EmergencyBanner';
@@ -28,10 +29,12 @@ export function HomeScreen({
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
 
   const handleOpenTutorial = (info: LescoVideoInfo) => {
+    haptics.medium();
     setActiveVideo(info);
   };
 
   const handleSignsToText = () => {
+    haptics.light();
     if (onNavigateToTranslator) {
       onNavigateToTranslator('signs_to_text');
     } else {
@@ -40,6 +43,7 @@ export function HomeScreen({
   };
 
   const handleTextToSigns = () => {
+    haptics.light();
     if (onNavigateToTranslator) {
       onNavigateToTranslator('text_to_signs');
     } else {
@@ -48,6 +52,7 @@ export function HomeScreen({
   };
 
   const handleEmergencies = () => {
+    haptics.emergency();
     if (onNavigateToEmergencies) {
       onNavigateToEmergencies();
     } else {
@@ -56,6 +61,7 @@ export function HomeScreen({
   };
 
   const handleTramites = (categoryId?: string) => {
+    haptics.light();
     if (onNavigateToTramites) {
       onNavigateToTramites(categoryId);
     } else {
@@ -64,6 +70,7 @@ export function HomeScreen({
   };
 
   const handleProfile = () => {
+    haptics.light();
     if (onNavigateToProfile) {
       onNavigateToProfile();
     } else {
@@ -72,6 +79,7 @@ export function HomeScreen({
   };
 
   const handleHistory = () => {
+    haptics.light();
     if (onNavigateToHistory) {
       onNavigateToHistory();
     } else {

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TouchableOpacity, View, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
@@ -11,6 +11,7 @@ import { SignupFormValues, SignupScreenProps } from '../types';
 export function SignupScreen({ onSuccess }: SignupScreenProps) {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
+  const scrollViewRef = useRef<ScrollView>(null);
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -49,12 +50,15 @@ export function SignupScreen({ onSuccess }: SignupScreenProps) {
       <StatusBar barStyle="dark-content" backgroundColor="#FBF6EE" />
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 25}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          ref={scrollViewRef}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 220 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
         >
           {/* Top Bar: Paso 1 de 1 + Botón LESCO */}
           <View style={styles.topBar}>

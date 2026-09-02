@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 
@@ -141,58 +141,64 @@ export function LescoVideoModal({ visible, videoInfo, onClose }: LescoVideoModal
     >
       <View style={modalStyles.overlay}>
         <View style={modalStyles.modalCard}>
-          {/* Header del Modal */}
-          <View style={modalStyles.headerRow}>
-            <View style={modalStyles.badge}>
-              <Text style={modalStyles.badgeText}>🤟 Video en LESCO</Text>
-            </View>
-            <TouchableOpacity
-              style={modalStyles.closeButton}
-              onPress={handleClose}
-              activeOpacity={0.7}
-              accessibilityLabel="Cerrar video de señas"
-            >
-              <Text style={modalStyles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Título de la Función */}
-          <Text style={modalStyles.titleText}>{videoInfo.title}</Text>
-          <Text style={modalStyles.subtitleText}>{videoInfo.category}</Text>
-
-          {/* Contenedor del Reproductor Vertical (9:16 / 4:5) */}
-          <View style={modalStyles.videoPlayerBox}>
-            <View style={modalStyles.videoWrapper}>
-              {Platform.OS === 'web' ? (
-                // @ts-ignore - Soporte Web nativo
-                <video
-                  ref={videoWebRef}
-                  src={videoSourceUri}
-                  autoPlay
-                  loop
-                  playsInline
-                  controls={false}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    backgroundColor: '#000000',
-                  }}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                />
-              ) : (
-                // Reproductor Moderno expo-video para Expo Go
-                <VideoView
-                  style={modalStyles.nativeVideo}
-                  player={player}
-                  nativeControls={false}
-                  contentFit="contain"
-                />
-              )}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            contentContainerStyle={modalStyles.scrollContent}
+          >
+            {/* Header del Modal */}
+            <View style={modalStyles.headerRow}>
+              <View style={modalStyles.badge}>
+                <Text style={modalStyles.badgeText}>🤟 Video en LESCO</Text>
+              </View>
+              <TouchableOpacity
+                style={modalStyles.closeButton}
+                onPress={handleClose}
+                activeOpacity={0.7}
+                accessibilityLabel="Cerrar video de señas"
+              >
+                <Text style={modalStyles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Barra de Controles Táctiles Accesibles */}
+            {/* Título de la Función */}
+            <Text style={modalStyles.titleText}>{videoInfo.title}</Text>
+            <Text style={modalStyles.subtitleText}>{videoInfo.category}</Text>
+
+            {/* Contenedor del Reproductor Vertical Centrado (9:16 exacto) */}
+            <View style={modalStyles.videoCenterContainer}>
+              <View style={modalStyles.videoPlayerBox}>
+                {Platform.OS === 'web' ? (
+                  // @ts-ignore - Soporte Web nativo
+                  <video
+                    ref={videoWebRef}
+                    src={videoSourceUri}
+                    autoPlay
+                    loop
+                    playsInline
+                    controls={false}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      backgroundColor: '#000000',
+                    }}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                  />
+                ) : (
+                  // Reproductor Moderno expo-video para Expo Go
+                  <VideoView
+                    style={modalStyles.nativeVideo}
+                    player={player}
+                    nativeControls={false}
+                    contentFit="cover"
+                  />
+                )}
+              </View>
+            </View>
+
+            {/* Barra de Controles Táctiles Debajo del Video */}
             <View style={modalStyles.controlsBar}>
               <TouchableOpacity
                 style={modalStyles.controlBtn}
@@ -228,24 +234,24 @@ export function LescoVideoModal({ visible, videoInfo, onClose }: LescoVideoModal
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          {/* Glosa / Palabras Clave */}
-          {videoInfo.glossText ? (
-            <View style={modalStyles.glossBox}>
-              <Text style={modalStyles.glossTitle}>SEÑAS EN ESTE VIDEO:</Text>
-              <Text style={modalStyles.glossContent}>{videoInfo.glossText}</Text>
-            </View>
-          ) : null}
+            {/* Glosa / Palabras Clave */}
+            {videoInfo.glossText ? (
+              <View style={modalStyles.glossBox}>
+                <Text style={modalStyles.glossTitle}>SEÑAS EN ESTE VIDEO:</Text>
+                <Text style={modalStyles.glossContent}>{videoInfo.glossText}</Text>
+              </View>
+            ) : null}
 
-          {/* Botón Entendido / Cerrar */}
-          <TouchableOpacity
-            style={modalStyles.confirmButton}
-            onPress={handleClose}
-            activeOpacity={0.85}
-          >
-            <Text style={modalStyles.confirmButtonText}>✓ Entendido / Cerrar</Text>
-          </TouchableOpacity>
+            {/* Botón Entendido / Cerrar */}
+            <TouchableOpacity
+              style={modalStyles.confirmButton}
+              onPress={handleClose}
+              activeOpacity={0.85}
+            >
+              <Text style={modalStyles.confirmButtonText}>✓ Entendido / Cerrar</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -262,10 +268,14 @@ const modalStyles = StyleSheet.create({
     backgroundColor: Colors.background.main,
     borderTopLeftRadius: Radius.xl * 1.2,
     borderTopRightRadius: Radius.xl * 1.2,
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xxxl,
-    maxHeight: '92%',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.md,
+    maxHeight: '88%',
     ...Shadows.card,
+  },
+  scrollContent: {
+    paddingBottom: Spacing.xs,
   },
   headerRow: {
     flexDirection: 'row',
@@ -302,7 +312,7 @@ const modalStyles = StyleSheet.create({
     color: Colors.text.primary,
   },
   titleText: {
-    fontSize: Typography.sizes.lg,
+    fontSize: Typography.sizes.md,
     fontWeight: Typography.weights.black,
     color: Colors.text.primary,
     marginTop: 2,
@@ -311,22 +321,22 @@ const modalStyles = StyleSheet.create({
     fontSize: Typography.sizes.xs,
     color: Colors.text.secondary,
     fontWeight: Typography.weights.medium,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  videoCenterContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 2,
   },
   videoPlayerBox: {
-    backgroundColor: '#0F172A',
+    width: 176,
+    height: 312, // 9:16 vertical nativo exacto
     borderRadius: Radius.lg,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: Colors.primary.main,
-    marginBottom: Spacing.sm,
-  },
-  videoWrapper: {
-    height: 300,
-    width: '100%',
-    backgroundColor: '#000000',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderWidth: 1.5,
+    borderColor: '#334155',
+    ...Shadows.card,
   },
   nativeVideo: {
     width: '100%',
@@ -335,19 +345,22 @@ const modalStyles = StyleSheet.create({
   controlsBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#0B1120',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B',
+    backgroundColor: '#0F172A',
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.pill,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#1E293B',
   },
   controlBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
-    borderRadius: Radius.md,
+    borderRadius: Radius.pill,
     gap: 4,
   },
   controlBtnPrimary: {

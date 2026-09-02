@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { styles } from '../styles/auth.styles';
 import { SignupErrors, SignupFormValues } from '../types';
+import { DatePickerModal } from './DatePickerModal';
 
 interface SignupFormProps {
   onSubmit: (values: SignupFormValues) => void;
@@ -16,6 +17,7 @@ export function SignupForm({ onSubmit, isLoading = false }: SignupFormProps) {
   const [birthDate, setBirthDate] = useState('');
   const [emergencyContact, setEmergencyContact] = useState('');
 
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [errors, setErrors] = useState<SignupErrors>({});
 
@@ -43,8 +45,18 @@ export function SignupForm({ onSubmit, isLoading = false }: SignupFormProps) {
     if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined }));
   };
 
+  // Formato Contacto de Emergencia (ej. 8888-8888)
+  const handleEmergencyContactChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    let formatted = cleaned;
+    if (cleaned.length > 4) {
+      formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4, 8)}`;
+    }
+    setEmergencyContact(formatted);
+  };
+
   // Formato Fecha de Nacimiento (ej. dd/mm/aaaa)
-  const handleBirthDateChange = (text: string) => {
+  const handleBirthDateTextChange = (text: string) => {
     const cleaned = text.replace(/[^0-9]/g, '');
     let formatted = cleaned;
     if (cleaned.length > 2 && cleaned.length <= 4) {
@@ -150,7 +162,7 @@ export function SignupForm({ onSubmit, isLoading = false }: SignupFormProps) {
         />
       </View>
 
-      {/* Campo 4: Fecha de nacimiento */}
+      {/* Campo 4: Fecha de nacimiento con Selector Desplegable */}
       <View style={styles.fieldGroup}>
         <Text style={styles.label}>Fecha de nacimiento</Text>
         <View style={[styles.inputWithIcon, focusedField === 'birthDate' && styles.inputFocused]}>
@@ -159,28 +171,36 @@ export function SignupForm({ onSubmit, isLoading = false }: SignupFormProps) {
             placeholder="dd/mm/aaaa"
             placeholderTextColor="#C4B8A6"
             value={birthDate}
-            onChangeText={handleBirthDateChange}
+            onChangeText={handleBirthDateTextChange}
             onFocus={() => setFocusedField('birthDate')}
             onBlur={() => setFocusedField(null)}
             keyboardType="numeric"
             maxLength={10}
           />
-          <Text style={styles.trailingIcon}>📅</Text>
+          <TouchableOpacity
+            style={{ padding: 6 }}
+            onPress={() => setIsDatePickerVisible(true)}
+            activeOpacity={0.7}
+            accessibilityLabel="Abrir calendario"
+          >
+            <Text style={styles.trailingIcon}>📅</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Campo 5: Contacto de emergencia */}
+      {/* Campo 5: Contacto de emergencia con Autoformato */}
       <View style={styles.fieldGroup}>
         <Text style={styles.label}>Contacto de emergencia</Text>
         <TextInput
           style={[styles.input, focusedField === 'emergency' && styles.inputFocused]}
-          placeholder="Teléfono de familiar o amigo"
+          placeholder="8888-8888"
           placeholderTextColor="#C4B8A6"
           value={emergencyContact}
-          onChangeText={setEmergencyContact}
+          onChangeText={handleEmergencyContactChange}
           onFocus={() => setFocusedField('emergency')}
           onBlur={() => setFocusedField(null)}
           keyboardType="phone-pad"
+          maxLength={9}
         />
       </View>
 
@@ -195,6 +215,13 @@ export function SignupForm({ onSubmit, isLoading = false }: SignupFormProps) {
           {isLoading ? 'Guardando...' : 'Crear cuenta'}
         </Text>
       </TouchableOpacity>
+
+      {/* Modal Desplegable del Calendario */}
+      <DatePickerModal
+        visible={isDatePickerVisible}
+        onClose={() => setIsDatePickerVisible(false)}
+        onSelectDate={(dateStr) => setBirthDate(dateStr)}
+      />
     </View>
   );
 }
