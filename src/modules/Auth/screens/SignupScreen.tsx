@@ -1,175 +1,108 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TouchableOpacity, View, Keyboard } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ScreenWrapper, AppButton, Badge, AppInput } from '@/shared/components';
-import { useAuthStore } from '@/shared/stores';
-import { colors } from '@/shared/theme/colors';
+import { useAuthStore } from '@/shared/stores/useAuthStore';
+import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { SignupForm } from '../components/SignupForm';
+import { styles } from '../styles/auth.styles';
+import { SignupFormValues, SignupScreenProps } from '../types';
 
-export function SignupScreen() {
+export function SignupScreen({ onSuccess }: SignupScreenProps) {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [nombre, setNombre] = useState('Pamela');
-  const [apellidos, setApellidos] = useState('Leiva');
-  const [cedula, setCedula] = useState('1-1234-5678');
-  const [telefono, setTelefono] = useState('8888-8888');
-  const [fecha, setFecha] = useState('1998-05-15');
-  const [emergencia, setEmergencia] = useState('8765-4321');
+  const handleSignup = (values: SignupFormValues) => {
+    setIsLoading(true);
+    const fullName = `${values.name} ${values.apellidos}`.trim();
 
-  const handleSubmit = () => {
-    login(
-      {
-        id: 'user-1',
-        name: `${nombre} ${apellidos}`,
-        nombre,
-        apellidos,
-        cedula,
-        telefono,
-        fechaNacimiento: fecha,
-        contactoEmergencia: emergencia,
-      },
-      'demo-token-123'
-    );
-    router.replace('/(tabs)');
-  };
+    setTimeout(() => {
+      login(
+        {
+          id: Date.now().toString(),
+          name: fullName,
+          nombre: values.name,
+          apellidos: values.apellidos,
+          cedula: values.cedula,
+          phone: values.phone,
+          telefono: values.phone,
+          fechaNacimiento: values.birthDate,
+          emergencyContact: values.emergencyContact,
+          contactoEmergencia: values.emergencyContact,
+        },
+        'token-lesconect-persistent'
+      );
+      setIsLoading(false);
 
-  const handleSkip = () => {
-    login(
-      {
-        id: 'user-guest',
-        name: 'Invitado Sordo',
-        nombre: 'Invitado',
-        apellidos: 'LESCO',
-      },
-      'guest-token'
-    );
-    router.replace('/(tabs)');
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.replace('/(tabs)');
+      }
+    }, 400);
   };
 
   return (
-    <ScreenWrapper scrollable backgroundColor={colors.background}>
-      <View style={styles.content}>
-        <View style={styles.headerBadgeRow}>
-          <Badge label="PASO 1 DE 1" variant="terracota" />
-        </View>
-
-        <Text style={styles.title}>Crear cuenta</Text>
-        <Text style={styles.subtitle}>
-          Ingresa tus datos para personalizar tu experiencia en LESCOnect
-        </Text>
-
-        <View style={styles.formGrid}>
-          <View style={styles.nameRow}>
-            <View style={styles.halfInput}>
-              <AppInput
-                label="Nombre"
-                placeholder="Ej: Pamela"
-                value={nombre}
-                onChangeText={setNombre}
-              />
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FBF6EE" />
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 25}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 220 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+        >
+          {/* Top Bar: Paso 1 de 1 + Botón LESCO */}
+          <View style={styles.topBar}>
+            <View style={styles.stepBadge}>
+              <Text style={styles.stepBadgeText}>PASO 1 DE 1</Text>
             </View>
-            <View style={styles.halfInput}>
-              <AppInput
-                label="Apellidos"
-                placeholder="Ej: Leiva"
-                value={apellidos}
-                onChangeText={setApellidos}
-              />
-            </View>
+
+            <TouchableOpacity
+              style={styles.lescoBtn}
+              onPress={() =>
+                setActiveVideo({
+                  title: 'Cómo crear tu cuenta',
+                  category: 'Registro Rápido',
+                  glossText: 'REGISTRO / NOMBRE APELLIDOS / CÉDULA IDENTIDAD / CONTACTO EMERGENCIA / LISTO',
+                })
+              }
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 12 }}>📹</Text>
+              <Text style={styles.lescoBtnText}>Ver en señas</Text>
+            </TouchableOpacity>
           </View>
 
-          <AppInput
-            label="Cédula de identidad"
-            placeholder="Ej: 1-1234-5678"
-            keyboardType="numeric"
-            value={cedula}
-            onChangeText={setCedula}
-          />
-
-          <AppInput
-            label="Teléfono"
-            placeholder="8888-8888"
-            keyboardType="phone-pad"
-            value={telefono}
-            onChangeText={setTelefono}
-          />
-
-          <AppInput
-            label="Fecha de nacimiento"
-            placeholder="AAAA-MM-DD"
-            value={fecha}
-            onChangeText={setFecha}
-          />
-
-          <AppInput
-            label="Contacto de emergencia (SOS)"
-            placeholder="Teléfono de familiar o amigo"
-            keyboardType="phone-pad"
-            helper="Recibirá tus alertas con coordenadas GPS en emergencias"
-            value={emergencia}
-            onChangeText={setEmergencia}
-          />
-
-          <View style={styles.buttonsContainer}>
-            <AppButton
-              title="Crear cuenta →"
-              variant="primary"
-              size="lg"
-              onPress={handleSubmit}
-            />
-
-            <View style={styles.buttonSpacer} />
-
-            <AppButton
-              title="Omitir por el momento"
-              variant="secondary"
-              size="md"
-              onPress={handleSkip}
-            />
+          {/* Título y Subtítulo idénticos al prototipo */}
+          <View style={styles.titleBox}>
+            <Text style={styles.title}>Crear cuenta</Text>
+            <Text style={styles.subtitle}>
+              Ingresa tus datos para personalizar tu experiencia
+            </Text>
           </View>
-        </View>
-      </View>
-    </ScreenWrapper>
+
+          {/* Formulario */}
+          <SignupForm onSubmit={handleSignup} isLoading={isLoading} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Modal de Video LESCO explicativo */}
+      {activeVideo ? (
+        <LescoVideoModal
+          visible={true}
+          videoInfo={activeVideo}
+          onClose={() => setActiveVideo(null)}
+        />
+      ) : null}
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 36,
-  },
-  headerBadgeRow: {
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '900',
-    color: '#2B241C',
-    marginBottom: 4,
-    letterSpacing: -0.4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#7A6E5C',
-    fontWeight: '500',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  formGrid: {
-    width: '100%',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  halfInput: {
-    flex: 1,
-  },
-  buttonsContainer: {
-    marginTop: 16,
-  },
-  buttonSpacer: {
-    height: 12,
-  },
-});

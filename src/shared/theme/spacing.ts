@@ -1,5 +1,3 @@
-// Espaciado, radios y zonas táctiles — LesConecte, Guía Visual
-
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -10,23 +8,39 @@ export const spacing = {
   '3xl': 32,
 } as const;
 
-export const radius = {
-  card: 14,     // tarjetas: 12–16px según la guía, 14 como punto medio
-  cardLarge: 16, // tarjetas grandes / contenedores
-  pill: 100,    // etiquetas de estado (badges) — forma píldora
-  full: 9999,   // avatares, botones circulares
+export const Spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
 } as const;
 
-// Zona táctil mínima obligatoria para botones y elementos interactivos
+export const radius = {
+  card: 14,
+  cardLarge: 16,
+  pill: 100,
+  full: 9999,
+} as const;
+
+export const Radius = {
+  sm: 8,
+  md: 14,
+  lg: 20,
+  xl: 26,
+  pill: 9999,
+} as const;
+
 export const touchTarget = {
   minHeight: 48,
   minWidth: 48,
 } as const;
 
-// Bordes — 1px estándar, 2px reforzado en modo exterior
 export const border = {
-  standard: 1,   // sobre color line (#EAE0D0) en fondo claro
-  outdoor: 2,    // modo exterior, alto contraste bajo sol directo
+  standard: 1,
+  outdoor: 2,
 } as const;
 
 export const shadow = {
@@ -43,6 +57,37 @@ export const shadow = {
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+  },
+} as const;
+
+export const Shadows = {
+  subtle: {
+    shadowColor: '#2B241C',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  card: {
+    shadowColor: '#2B241C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  primaryGlow: {
+    shadowColor: '#B5551A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  emergencyGlow: {
+    shadowColor: '#C0392B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 4,
   },
 } as const;
 

@@ -1,25 +1,8 @@
-// Tipografía — LesConecte, Guía Visual (Paleta Tierra)
-//
-// Requiere instalar (fuentes de Google Fonts vía Expo):
-//   npx expo install expo-font \
-//     @expo-google-fonts/lexend \
-//     @expo-google-fonts/atkinson-hyperlegible \
-//     @expo-google-fonts/inter
-//
-// Cargar en el layout raíz con useFonts() antes de renderizar la app:
-//   Lexend_600SemiBold, Lexend_800ExtraBold,
-//   AtkinsonHyperlegible_400Regular, AtkinsonHyperlegible_700Bold,
-//   Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold
-
 export const fontFamily = {
-  // Titulares — Lexend 800 ExtraBold
   displayExtraBold: 'Lexend_800ExtraBold',
-  // Subtítulos — Lexend 600 SemiBold
   displaySemiBold: 'Lexend_600SemiBold',
-  // Cuerpo de texto — Atkinson Hyperlegible (máxima distinción entre caracteres)
   body: 'AtkinsonHyperlegible_400Regular',
   bodyBold: 'AtkinsonHyperlegible_700Bold',
-  // Interfaz / datos (timestamps, etiquetas, metadatos) — Inter
   utility: 'Inter_400Regular',
   utilityMedium: 'Inter_500Medium',
   utilitySemiBold: 'Inter_600SemiBold',
@@ -36,11 +19,10 @@ export const fontSize = {
   '3xl': 30,
 } as const;
 
-// Interlineado de cuerpo: 1.4–1.6 según la guía
 export const lineHeight = {
-  tight: 1.2,   // titulares
-  body: 1.5,    // cuerpo de texto — punto medio del rango 1.4-1.6
-  relaxed: 1.6, // párrafos largos
+  tight: 1.2,
+  body: 1.5,
+  relaxed: 1.6,
 } as const;
 
 export const typography = {
@@ -87,3 +69,29 @@ export const typography = {
 } as const;
 
 export type TypographyToken = keyof typeof typography;
+
+export const Typography = {
+  sizes: {
+    xs: 11,
+    sm: 13,
+    md: 15,
+    lg: 18,
+    xl: 22,
+    xxl: 26,
+    hero: 32,
+  },
+  weights: {
+    regular: '400',
+    medium: '500',
+    semibold: '600',
+    bold: '700',
+    black: '800',
+  },
+  lineHeights: {
+    tight: 1.2,
+    normal: 1.4,
+    relaxed: 1.6,
+  },
+} as const;
+
+export type TypographyTokens = typeof Typography;

@@ -1,181 +1,215 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ScreenWrapper, Badge, LescoVideoModal } from '@/shared/components';
-import { colors } from '@/shared/theme/colors';
+import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
+import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
 
 export function WelcomeScreen() {
   const router = useRouter();
-  const [isVideoModalVisible, setIsVideoModalVisible] = useState(false);
+  const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
+
+  const handleStart = () => {
+    router.push('/(auth)/signup');
+  };
 
   return (
-    <ScreenWrapper scrollable={false} backgroundColor={colors.background}>
-      <View style={styles.container}>
-        {/* Botón de Video LESCO Superior */}
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={() => setIsVideoModalVisible(true)}
-            style={({ pressed }) => [styles.videoBtn, pressed && styles.pressed]}>
-            <Text style={styles.videoBtnIcon}>📹</Text>
-          </Pressable>
-        </View>
-
-        {/* Contenido Central */}
-        <View style={styles.centerContent}>
-          {/* Icono Principal LESCO */}
-          <View style={styles.logoBox}>
-            <Text style={styles.logoEmoji}>🤟</Text>
+    <SafeAreaView style={welcomeStyles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FBF6EE" />
+      <View style={welcomeStyles.container}>
+        {/* Badge LESCO Superior */}
+        <View style={welcomeStyles.badgeRow}>
+          <View style={welcomeStyles.badge}>
+            <Text style={welcomeStyles.badgeText}>🤟 LESCO Costarricense</Text>
           </View>
 
-          <Badge label="✦ Accesibilidad Sin Barreras" variant="salvia" showDot />
+          {/* Botón de Video LESCO de Bienvenida */}
+          <TouchableOpacity
+            style={welcomeStyles.videoBtn}
+            onPress={() =>
+              setActiveVideo({
+                title: 'Bienvenida a LESCOnect',
+                category: 'Presentación en Señas',
+                glossText: 'HOLA BIENVENIDO / LESCOnect APLICACIÓN TRADUCTOR / PERSONA SORDA OYENTE COMUNICAR',
+              })
+            }
+            activeOpacity={0.8}
+            accessibilityLabel="Ver bienvenida en señas LESCO"
+          >
+            <Text style={{ fontSize: 13, marginRight: 4 }}>📹</Text>
+            <Text style={welcomeStyles.videoBtnText}>Ver en Señas</Text>
+          </TouchableOpacity>
+        </View>
 
-          <Text style={styles.title}>LESCOnect</Text>
-          <Text style={styles.subtitle}>
-            Traducción y comunicación bidireccional en Lenguaje de Señas Costarricense.
+        {/* Tarjeta Central Hero */}
+        <View style={welcomeStyles.heroCard}>
+          <View style={welcomeStyles.iconCircle}>
+            <Text style={welcomeStyles.heroIcon}>🤟</Text>
+          </View>
+
+          <Text style={welcomeStyles.appName}>LESCOnect</Text>
+          <Text style={welcomeStyles.appTagline}>Puente de comunicación e inclusión</Text>
+
+          <View style={welcomeStyles.divider} />
+
+          <Text style={welcomeStyles.description}>
+            Traducción en tiempo real entre Lengua de Señas (LESCO), voz y texto para trámites y emergencias.
           </Text>
         </View>
 
-        {/* Botón / Deslizar de Inicio */}
-        <Pressable
-          onPress={() => router.push('/(auth)/signup')}
-          style={({ pressed }) => [styles.actionCard, pressed && styles.actionCardPressed]}>
-          <View style={styles.actionTextFlex}>
-            <Text style={styles.actionLabel}>COMENZAR</Text>
-            <Text style={styles.actionTitle}>Toca para ingresar</Text>
-          </View>
+        {/* Botones Inferiores de Acción */}
+        <View style={welcomeStyles.actionArea}>
+          <TouchableOpacity
+            style={welcomeStyles.primaryButton}
+            onPress={handleStart}
+            activeOpacity={0.85}
+          >
+            <Text style={welcomeStyles.primaryButtonText}>Crear mi cuenta →</Text>
+          </TouchableOpacity>
 
-          <View style={styles.arrowCircle}>
-            <Text style={styles.arrowText}>→</Text>
+          {/* Indicador de Swipe / Continuar */}
+          <View style={welcomeStyles.swipeIndicator}>
+            <Text style={welcomeStyles.swipeArrow}>▲</Text>
+            <Text style={welcomeStyles.swipeText}>Desliza hacia arriba para comenzar</Text>
           </View>
-        </Pressable>
+        </View>
       </View>
 
-      {/* Modal de Tutorial Video LESCO */}
-      <LescoVideoModal
-        visible={isVideoModalVisible}
-        onClose={() => setIsVideoModalVisible(false)}
-        videoTitle="Bienvenida a LESCOnect"
-      />
-    </ScreenWrapper>
+      {/* Modal de Video LESCO */}
+      {activeVideo ? (
+        <LescoVideoModal
+          visible={true}
+          videoInfo={activeVideo}
+          onClose={() => setActiveVideo(null)}
+        />
+      ) : null}
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const welcomeStyles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background.main,
+  },
   container: {
     flex: 1,
-    paddingHorizontal: 28,
-    paddingVertical: 24,
+    padding: Spacing.lg,
     justifyContent: 'space-between',
   },
-  topBar: {
-    alignItems: 'flex-end',
+  badgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+  },
+  badge: {
+    backgroundColor: Colors.secondary.surface,
+    borderColor: Colors.secondary.border,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
+    borderRadius: Radius.pill,
+  },
+  badgeText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.bold,
+    color: Colors.secondary.main,
   },
   videoBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#EAE0D0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#2B241C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  videoBtnIcon: {
-    fontSize: 20,
-  },
-  centerContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 'auto',
-  },
-  logoBox: {
-    width: 100,
-    height: 100,
-    borderRadius: 30,
-    backgroundColor: '#B5551A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    borderWidth: 3,
-    borderColor: '#F3EADA',
-    shadowColor: '#B5551A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  logoEmoji: {
-    fontSize: 48,
-  },
-  title: {
-    fontSize: 34,
-    fontWeight: '900',
-    color: '#2B241C',
-    marginTop: 12,
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#7A6E5C',
-    textAlign: 'center',
-    lineHeight: 22,
-    fontWeight: '500',
-    maxWidth: 280,
-  },
-  actionCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#EAE0D0',
-    borderRadius: 22,
-    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#2B241C',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: Colors.primary.surface,
+    borderColor: Colors.primary.border,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
+    borderRadius: Radius.pill,
   },
-  actionCardPressed: {
-    transform: [{ scale: 0.98 }],
-    borderColor: '#B5551A',
+  videoBtnText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.bold,
+    color: Colors.primary.main,
   },
-  actionTextFlex: {
-    flex: 1,
+  heroCard: {
+    backgroundColor: Colors.background.card,
+    borderRadius: Radius.xl * 1.2,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    ...Shadows.card,
   },
-  actionLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#7A6E5C',
-    letterSpacing: 0.8,
-  },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#2B241C',
-    marginTop: 2,
-  },
-  arrowCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#F3EADA',
+  iconCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: Colors.primary.surface,
+    borderWidth: 2,
+    borderColor: Colors.primary.border,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: Spacing.md,
+    ...Shadows.subtle,
   },
-  arrowText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#B5551A',
+  heroIcon: {
+    fontSize: 42,
   },
-  pressed: {
-    transform: [{ scale: 0.95 }],
+  appName: {
+    fontSize: 32,
+    fontWeight: Typography.weights.black,
+    color: Colors.primary.main,
+    letterSpacing: -0.5,
+  },
+  appTagline: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.bold,
+    color: Colors.secondary.main,
+    marginTop: 2,
+  },
+  divider: {
+    width: '40%',
+    height: 2,
+    backgroundColor: Colors.border.subtle,
+    marginVertical: Spacing.md,
+    borderRadius: Radius.pill,
+  },
+  description: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    fontWeight: Typography.weights.medium,
+  },
+  actionArea: {
+    gap: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  primaryButton: {
+    backgroundColor: Colors.primary.main,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.md + 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.primaryGlow,
+  },
+  primaryButtonText: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.bold,
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  swipeIndicator: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  swipeArrow: {
+    fontSize: 12,
+    color: Colors.text.muted,
+  },
+  swipeText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.text.muted,
+    fontWeight: Typography.weights.medium,
   },
 });

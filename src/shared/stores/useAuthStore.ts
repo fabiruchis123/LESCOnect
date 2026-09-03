@@ -1,4 +1,3 @@
-import { createMMKV, type MMKV } from 'react-native-mmkv';
 import { create } from 'zustand';
 import { createJSONStorage, persist, StateStorage } from 'zustand/middleware';
 
@@ -8,8 +7,10 @@ export interface User {
   nombre?: string;
   apellidos?: string;
   cedula?: string;
+  phone?: string;
   telefono?: string;
   fechaNacimiento?: string;
+  emergencyContact?: string;
   contactoEmergencia?: string;
   email?: string;
   avatarUrl?: string;
@@ -27,47 +28,68 @@ export interface AuthState {
   setLoading: (isLoading: boolean) => void;
 }
 
-// Inicialización segura de MMKV con fallback en caso de entornos sin módulos nativos (ej. Web)
-let mmkvInstance: MMKV | null = null;
-try {
-  mmkvInstance = createMMKV({ id: 'lesconect-auth-storage' });
-} catch (error) {
-  console.warn('MMKV initialization fallback to in-memory state:', error);
-}
+// Almacenamiento seguro en memoria / LocalStorage para Expo Go y Web
+const memoryStorage = new Map<string, string>();
 
-const mmkvStateStorage: StateStorage = {
+let mmkvStateStorage: StateStorage = {
   setItem: (name, value) => {
-    if (mmkvInstance) {
-      mmkvInstance.set(name, value);
-    }
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(name, value);
+        return;
+      }
+    } catch {}
+    memoryStorage.set(name, value);
   },
   getItem: (name) => {
-    if (mmkvInstance) {
-      const value = mmkvInstance.getString(name);
-      return value ?? null;
-    }
-    return null;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage.getItem(name);
+      }
+    } catch {}
+    return memoryStorage.get(name) ?? null;
   },
   removeItem: (name) => {
-    if (mmkvInstance) {
-      mmkvInstance.remove(name);
-    }
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(name);
+        return;
+      }
+    } catch {}
+    memoryStorage.delete(name);
   },
 };
+
+// Intento de inicialización nativa de MMKV con fallback seguro
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { createMMKV } = require('react-native-mmkv');
+  const mmkvInstance = createMMKV({ id: 'lesconect-auth-storage' });
+  if (mmkvInstance) {
+    mmkvStateStorage = {
+      setItem: (name: string, value: string) => mmkvInstance.set(name, value),
+      getItem: (name: string) => mmkvInstance.getString(name) ?? null,
+      removeItem: (name: string) => mmkvInstance.remove(name),
+    };
+  }
+} catch (error) {
+  // Fallback transparente para entornos Expo Go y Web
+}
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: {
-        id: 'user-demo-1',
-        name: 'Pamela Leiva',
-        nombre: 'Pamela',
-        apellidos: 'Leiva',
-        cedula: '1-1234-5678',
+        id: '1',
+        name: 'Génesis Pamela',
+        nombre: 'Génesis Pamela',
+        apellidos: 'Leiva Gómez',
+        cedula: '5-0454-0188',
         telefono: '8888-8888',
+        phone: '8888-8888',
         contactoEmergencia: '8765-4321',
       },
-      token: 'demo-token',
+      token: 'mock-token-lesconect',
       isAuthenticated: true,
       isLoading: false,
 

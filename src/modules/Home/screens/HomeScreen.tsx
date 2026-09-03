@@ -1,380 +1,171 @@
 import React, { useState } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ScrollView, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import {
-  ScreenWrapper,
-  AppHeader,
-  Badge,
-  LescoVideoModal,
-} from '@/shared/components';
-import { colors } from '@/shared/theme/colors';
+import { useAuthStore } from '@/shared/stores/useAuthStore';
+import { haptics } from '@/shared/utils/haptics';
+import { HomeHeader } from '../components/HomeHeader';
+import { TranslatorHeroCard } from '../components/TranslatorHeroCard';
+import { EmergencyBanner } from '../components/EmergencyBanner';
+import { QuickMessagesBento } from '../components/QuickMessagesBento';
+import { SecondaryActionsGrid } from '../components/SecondaryActionsGrid';
+import { LescoVideoModal, type LescoVideoInfo } from '../components/LescoVideoModal';
+import { styles } from '../styles/home.styles';
+import { HomeScreenProps } from '../types';
 
-export function HomeScreen() {
+export function HomeScreen({
+  onNavigateToTranslator,
+  onNavigateToEmergencies,
+  onNavigateToTramites,
+  onNavigateToHistory,
+  onNavigateToHelp,
+  onNavigateToProfile,
+}: HomeScreenProps) {
   const router = useRouter();
-  const [isVideoModalVisible, setIsVideoModalVisible] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const userName = user?.name || 'Pamela';
+
+  // Estado para el modal de video LESCO
+  const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
+
+  const handleOpenTutorial = (info: LescoVideoInfo) => {
+    haptics.medium();
+    setActiveVideo(info);
+  };
+
+  const handleSignsToText = () => {
+    haptics.light();
+    if (onNavigateToTranslator) {
+      onNavigateToTranslator('signs_to_text');
+    } else {
+      router.push('/(tabs)/traductor');
+    }
+  };
+
+  const handleTextToSigns = () => {
+    haptics.light();
+    if (onNavigateToTranslator) {
+      onNavigateToTranslator('text_to_signs');
+    } else {
+      router.push('/(tabs)/traductor');
+    }
+  };
+
+  const handleEmergencies = () => {
+    haptics.emergency();
+    if (onNavigateToEmergencies) {
+      onNavigateToEmergencies();
+    } else {
+      router.push('/(tabs)/emergencias');
+    }
+  };
+
+  const handleTramites = (categoryId?: string) => {
+    haptics.light();
+    if (onNavigateToTramites) {
+      onNavigateToTramites(categoryId);
+    } else {
+      router.push('/(tabs)/tramites');
+    }
+  };
+
+  const handleProfile = () => {
+    haptics.light();
+    if (onNavigateToProfile) {
+      onNavigateToProfile();
+    } else {
+      router.push('/(tabs)/perfil');
+    }
+  };
+
+  const handleHistory = () => {
+    haptics.light();
+    if (onNavigateToHistory) {
+      onNavigateToHistory();
+    } else {
+      router.push('/(tabs)');
+    }
+  };
 
   return (
-    <ScreenWrapper scrollable backgroundColor={colors.background}>
-      <AppHeader
-        showUserBadge
-        onVideoTutorialPress={() => setIsVideoModalVisible(true)}
-      />
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FBF6EE" />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 1. Header con Saludo, Perfil y Video LESCO de Bienvenida */}
+        <HomeHeader
+          userName={userName}
+          onPressProfile={handleProfile}
+          onPressTutorial={() =>
+            handleOpenTutorial({
+              title: 'Bienvenida a LESCOnect',
+              category: 'Introducción General',
+              glossText: 'HOLA BIENVENIDO / LESCOnect APLICACIÓN COMUNICAR / SEÑAS VOZ',
+            })
+          }
+        />
 
-      <View style={styles.content}>
-        {/* ======================================================= */}
-        {/* ⭐ PRIORIDAD 1: HERO CARD - TRADUCTOR (PALETA TERRACOTA) */}
-        {/* ======================================================= */}
-        <View style={styles.heroCard}>
-          {/* Header del Hero */}
-          <View style={styles.heroHeaderRow}>
-            <View style={styles.heroBadgeLeft}>
-              <Badge label="✦ FUNCIÓN PRINCIPAL" variant="dark" />
-            </View>
-            <Pressable
-              onPress={() => setIsVideoModalVisible(true)}
-              style={({ pressed }) => [styles.heroVideoBtn, pressed && styles.pressed]}>
-              <Text style={styles.heroVideoText}>📹 Tutorial LESCO</Text>
-            </Pressable>
-          </View>
+        {/* 2. Prioridad 1: Hero Card Traductor LESCO (Terracota) */}
+        <TranslatorHeroCard
+          onPressSignsToText={handleSignsToText}
+          onPressTextToSigns={handleTextToSigns}
+          onPressTutorial={() =>
+            handleOpenTutorial({
+              title: 'Traductor LESCO',
+              category: 'Señas ↔ Voz y Texto',
+              glossText: 'CÁMARA VER TÚ HACER SEÑAS / CONVERTIR VOZ TEXTO / OTRA PERSONA HABLAR TÚ VER SEÑAS',
+            })
+          }
+        />
 
-          {/* Título e Icono de Encabezado */}
-          <View style={styles.heroTitleRow}>
-            <View style={styles.heroLogoCircle}>
-              <Text style={styles.heroLogoEmoji}>🤟</Text>
-            </View>
-            <View style={styles.heroTitleTextFlex}>
-              <Text style={styles.heroTitle}>Traductor LESCO</Text>
-              <Text style={styles.heroSubtitleTag}>TRADUCCIÓN DIRECTA</Text>
-            </View>
-          </View>
+        {/* 3. Prioridad 2: Emergencias 9-1-1 SOS (Coral Urgente) */}
+        <EmergencyBanner
+          onPress={handleEmergencies}
+          onPressTutorial={() =>
+            handleOpenTutorial({
+              title: 'Emergencias 9-1-1 SOS',
+              category: 'Auxilio y Seguridad',
+              glossText: 'EMERGENCIA AUXILIO 9-1-1 / TOCAR BOTÓN / BOMBEROS POLICÍA AMBULANCIA LLEGAR GPS',
+            })
+          }
+        />
 
-          {/* BOTONES GRANDES APILADOS VERTICALMENTE EN COLUMNA (FIEL AL PROTOTIPO) */}
-          <View style={styles.stackedButtonsColumn}>
-            {/* Botón 1: Señas a Voz / Texto */}
-            <Pressable
-              onPress={() => router.push('/(tabs)/traductor')}
-              style={({ pressed }) => [styles.stackedBtn, pressed && styles.stackedBtnPressed]}>
-              <View style={styles.stackedBtnLeftRow}>
-                <View style={[styles.stackedIconBox, styles.stackedIconBoxTerracota]}>
-                  <Text style={styles.stackedEmoji}>📷</Text>
-                </View>
-                <View style={styles.stackedTextFlex}>
-                  <Text style={styles.stackedBtnTitle}>Señas a Voz</Text>
-                  <Text style={styles.stackedBtnSub}>Reconocimiento con cámara LESCO</Text>
-                </View>
-              </View>
-              <View style={[styles.stackedArrowCircle, styles.stackedArrowTerracota]}>
-                <Text style={styles.stackedArrowText}>→</Text>
-              </View>
-            </Pressable>
+        {/* 4. Prioridad 3: Mensajes Rápidos Bento Grid */}
+        <QuickMessagesBento
+          onPressViewAll={() => handleTramites()}
+          onPressCategory={(id) => handleTramites(id)}
+          onPressTutorial={(id) =>
+            handleOpenTutorial({
+              title: `Trámites - ${id.toUpperCase()}`,
+              category: 'Frases y Asistencia Presencial',
+              glossText: `TOCAR MOSTRAR PANTALLA GIGANTE / FUNCIONARIO LEER AYUDAR ${id.toUpperCase()}`,
+            })
+          }
+        />
 
-            {/* Botón 2: Voz / Texto a Señas */}
-            <Pressable
-              onPress={() => router.push('/(tabs)/traductor')}
-              style={({ pressed }) => [styles.stackedBtn, pressed && styles.stackedBtnPressed]}>
-              <View style={styles.stackedBtnLeftRow}>
-                <View style={[styles.stackedIconBox, styles.stackedIconBoxSalvia]}>
-                  <Text style={styles.stackedEmoji}>🎙️</Text>
-                </View>
-                <View style={styles.stackedTextFlex}>
-                  <Text style={styles.stackedBtnTitle}>Voz a Señas</Text>
-                  <Text style={styles.stackedBtnSub}>Dictado y clips de señas</Text>
-                </View>
-              </View>
-              <View style={[styles.stackedArrowCircle, styles.stackedArrowSalvia]}>
-                <Text style={styles.stackedArrowTextSalvia}>→</Text>
-              </View>
-            </Pressable>
-          </View>
-        </View>
+        {/* 5. Prioridad 4 y 5: Historial y Ayuda LESCO */}
+        <SecondaryActionsGrid
+          onPressHistory={handleHistory}
+          onPressHelp={() =>
+            handleOpenTutorial({
+              title: 'Ayuda y Tutoriales LESCO',
+              category: 'Centro de Aprendizaje',
+              glossText: 'AYUDA PREGUNTAS / APRENDER USAR APLICACIÓN LESCO',
+            })
+          }
+        />
+      </ScrollView>
 
-        {/* ======================================================= */}
-        {/* 🚨 PRIORIDAD 2: EMERGENCIAS (COLOR CORAL URGENTE)       */}
-        {/* ======================================================= */}
-        <Pressable
-          onPress={() => router.push('/(tabs)/emergencias')}
-          style={({ pressed }) => [styles.emergencyHeroCard, pressed && styles.pressed]}>
-          <View style={styles.emergencyLeftRow}>
-            <View style={styles.emergencyIconBox}>
-              <Text style={styles.emergencyEmoji}>🚨</Text>
-            </View>
-            <View style={styles.emergencyTextFlex}>
-              <View style={styles.emergencyHeaderBadgeRow}>
-                <Text style={styles.emergencyTitle}>Emergencias</Text>
-                <View style={styles.sosBadgePill}>
-                  <Text style={styles.sosBadgeText}>SOS</Text>
-                </View>
-              </View>
-              <Text style={styles.emergencySub}>Policía, Ambulancia, Bomberos</Text>
-            </View>
-          </View>
-          <View style={styles.emergencyArrowCircle}>
-            <Text style={styles.emergencyArrowText}>→</Text>
-          </View>
-        </Pressable>
-      </View>
-
-      {/* Modal de Tutorial Video LESCO */}
-      <LescoVideoModal
-        visible={isVideoModalVisible}
-        onClose={() => setIsVideoModalVisible(false)}
-        videoTitle="Bienvenida a LESCOnect"
-      />
-    </ScreenWrapper>
+      {/* Modal Reproductor de Video en LESCO (Carga diferida para inicio instantáneo) */}
+      {activeVideo ? (
+        <LescoVideoModal
+          visible={true}
+          videoInfo={activeVideo}
+          onClose={() => setActiveVideo(null)}
+        />
+      ) : null}
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
-  heroCard: {
-    backgroundColor: '#B5551A',
-    borderRadius: 28,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#D46B28',
-    shadowColor: '#B5551A',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  heroHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  heroBadgeLeft: {
-    alignSelf: 'flex-start',
-  },
-  heroVideoBtn: {
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  heroVideoText: {
-    color: '#F3EADA',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  heroTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
-  },
-  heroLogoCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-    borderWidth: 2,
-    borderColor: '#EAE0D0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  heroLogoEmoji: {
-    fontSize: 28,
-  },
-  heroTitleTextFlex: {
-    flex: 1,
-  },
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.4,
-  },
-  heroSubtitleTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#F3EADA',
-    letterSpacing: 0.8,
-    marginTop: 2,
-  },
-  stackedButtonsColumn: {
-    gap: 12,
-  },
-  stackedBtn: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 14,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  stackedBtnPressed: {
-    transform: [{ scale: 0.98 }],
-    backgroundColor: '#F3EADA',
-  },
-  stackedBtnLeftRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  stackedIconBox: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  stackedIconBoxTerracota: {
-    backgroundColor: '#F3EADA',
-  },
-  stackedIconBoxSalvia: {
-    backgroundColor: '#EBF2EB',
-  },
-  stackedEmoji: {
-    fontSize: 22,
-  },
-  stackedTextFlex: {
-    flex: 1,
-  },
-  stackedBtnTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#2B241C',
-  },
-  stackedBtnSub: {
-    fontSize: 12,
-    color: '#7A6E5C',
-    fontWeight: '500',
-    marginTop: 1,
-  },
-  stackedArrowCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 10,
-  },
-  stackedArrowTerracota: {
-    backgroundColor: '#F3EADA',
-  },
-  stackedArrowSalvia: {
-    backgroundColor: '#EBF2EB',
-  },
-  stackedArrowText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#B5551A',
-  },
-  stackedArrowTextSalvia: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#5C7A5C',
-  },
-
-  // Emergencias Hero Button
-  emergencyHeroCard: {
-    backgroundColor: '#C0392B',
-    borderRadius: 22,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 2,
-    borderColor: '#E6B0AA',
-    shadowColor: '#C0392B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  emergencyLeftRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  emergencyIconBox: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-    borderWidth: 1,
-    borderColor: '#EAE0D0',
-  },
-  emergencyEmoji: {
-    fontSize: 24,
-  },
-  emergencyTextFlex: {
-    flex: 1,
-  },
-  emergencyHeaderBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  emergencyTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  sosBadgePill: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  sosBadgeText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#C0392B',
-  },
-  emergencySub: {
-    fontSize: 12,
-    color: '#FADBD8',
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  emergencyArrowCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 10,
-  },
-  emergencyArrowText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#C0392B',
-  },
-  pressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.9,
-  },
-});
