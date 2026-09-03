@@ -22,30 +22,12 @@ export const styles = StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
+    justifyContent: 'center',
+    paddingRight: Spacing.sm,
   },
-  badgeSalvia: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.secondary.surface,
-    borderColor: Colors.secondary.border,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: Radius.pill,
-    marginBottom: Spacing.xs,
-  },
-  badgeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: Colors.secondary.main,
-    marginRight: 6,
-  },
-  badgeText: {
-    fontSize: Typography.sizes.xs,
-    fontWeight: Typography.weights.bold,
-    color: Colors.secondary.main,
+  headerBrandBox: {
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
   greetingTitle: {
     fontSize: Typography.sizes.xxl,
@@ -53,11 +35,24 @@ export const styles = StyleSheet.create({
     color: Colors.text.primary,
     letterSpacing: -0.5,
   },
-  greetingSubtitle: {
-    fontSize: Typography.sizes.sm,
-    color: Colors.text.secondary,
-    fontWeight: Typography.weights.medium,
-    marginTop: 2,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  headerVideoButton: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primary.surface,
+    borderColor: Colors.border.subtle,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.subtle,
+  },
+  headerVideoIcon: {
+    fontSize: 22,
   },
   avatarButton: {
     width: 48,

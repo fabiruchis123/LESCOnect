@@ -1,0 +1,377 @@
+[
+  {
+    "id": "emergencia",
+    "name": "Emergencia",
+    "subtitle": "Urgencias, 911 y ayuda",
+    "badge": "Atención Inmediata",
+    "icon": "🚨",
+    "themeColor": "#C0392B",
+    "bgColor": "#FDEDEC",
+    "borderColor": "#F5B7B1",
+    "rompehielo": {
+      "phrase": "¡Atención! Soy una persona sorda y necesito auxilio urgente.",
+      "gloss": "ATENCIÓN • YO SORDO • AYUDA URGENTE"
+    },
+    "situations": [
+      {
+        "id": "auxilio",
+        "title": "Auxilio Inmediato",
+        "situationNum": 1,
+        "icon": "🚨",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Necesito ayuda urgente, no puedo escuchar",
+            "gloss": "AYUDA URGENTE • YO NO ESCUCHO • ATENCIÓN",
+            "text": "Necesito ayuda urgente, no puedo escuchar"
+          },
+          {
+            "phrase": "Estoy en una situación de peligro",
+            "gloss": "YO • PELIGRO • AYUDA INMEDIATA",
+            "text": "Estoy en una situación de peligro"
+          },
+          {
+            "phrase": "Por favor llame a mis contactos de emergencia",
+            "gloss": "POR FAVOR • LLAMAR • CONTACTOS SOS",
+            "text": "Por favor llame a mis contactos de emergencia"
+          }
+        ]
+      },
+      {
+        "id": "salud",
+        "title": "Ambulancia y Salud",
+        "situationNum": 2,
+        "icon": "🚑",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Llamen a una ambulancia inmediatamente",
+            "gloss": "LLAMAR • AMBULANCIA • RÁPIDO",
+            "text": "Llamen a una ambulancia inmediatamente"
+          },
+          {
+            "phrase": "Hay una persona herida o inconsciente",
+            "gloss": "PERSONA • HERIDA • NO REACCIONA",
+            "text": "Hay una persona herida o inconsciente"
+          }
+        ]
+      },
+      {
+        "id": "rescate",
+        "title": "Seguridad y Rescate",
+        "situationNum": 3,
+        "icon": "🌊",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Hay fuego o humo, llamen a bomberos",
+            "gloss": "FUEGO • HUMO • LLAMAR BOMBEROS",
+            "text": "Hay fuego o humo, llamen a bomberos"
+          },
+          {
+            "phrase": "Hay una persona atrapada aquí",
+            "gloss": "PERSONA • ATRAPADA • AYUDA RESCATE",
+            "text": "Hay una persona atrapada aquí"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "policia",
+    "name": "Policía",
+    "subtitle": "Asistencia y trámites",
+    "badge": "Seguridad Ciudadana",
+    "icon": "👮",
+    "themeColor": "#2471A3",
+    "bgColor": "#EAF2F8",
+    "borderColor": "#AED6F1",
+    "rompehielo": {
+      "phrase": "Hola, soy una persona sorda y necesito comunicarme con un oficial.",
+      "gloss": "HOLA • YO SORDO • NECESITAR HABLAR OFICIAL"
+    },
+    "situations": [
+      {
+        "id": "identificacion",
+        "title": "Identificación y Trato",
+        "situationNum": 1,
+        "icon": "🪪",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Soy una persona sorda, por favor escriba las indicaciones",
+            "gloss": "YO SORDO • POR FAVOR • ESCRIBIR PAPEL",
+            "text": "Soy una persona sorda, por favor escriba las indicaciones"
+          },
+          {
+            "phrase": "Aquí está mi cédula de identidad",
+            "gloss": "AQUÍ • CÉDULA • MOSTRAR",
+            "text": "Aquí está mi cédula de identidad"
+          },
+          {
+            "phrase": "Necesito un intérprete de LESCO para este proceso",
+            "gloss": "NECESITAR • INTÉRPRETE LESCO • POLICÍA",
+            "text": "Necesito un intérprete de LESCO para este proceso"
+          }
+        ]
+      },
+      {
+        "id": "denuncias",
+        "title": "Denuncias y Pérdidas",
+        "situationNum": 2,
+        "icon": "📋",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Fui víctima de un robo o asalto",
+            "gloss": "ROBO • ASALTO • DENUNCIA OFICIAL",
+            "text": "Fui víctima de un robo o asalto"
+          },
+          {
+            "phrase": "Perdí mis documentos personales",
+            "gloss": "PÉRDIDA • BILLETERA • DOCUMENTOS",
+            "text": "Perdí mis documentos personales"
+          }
+        ]
+      },
+      {
+        "id": "ubicacion",
+        "title": "Ubicación y Ayuda",
+        "situationNum": 3,
+        "icon": "📍",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "¿Dónde queda la parada de buses más cercana?",
+            "gloss": "DÓNDE • PARADA BUS • CERCA",
+            "text": "¿Dónde queda la parada de buses más cercana?"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "hospital",
+    "name": "Hospital",
+    "subtitle": "Salud, síntomas y recetas",
+    "badge": "Atención Médica",
+    "icon": "🏥",
+    "themeColor": "#5C7A5C",
+    "bgColor": "#EBF2EB",
+    "borderColor": "#C8DAC8",
+    "rompehielo": {
+      "phrase": "Hola, soy una persona sorda y necesito atención médica.",
+      "gloss": "HOLA • YO SORDO • NECESITAR MÉDICO ATENCIÓN"
+    },
+    "situations": [
+      {
+        "id": "admision",
+        "title": "Admisión y Citas",
+        "situationNum": 1,
+        "icon": "🏥",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Soy sordo/a, necesito un intérprete de LESCO si es posible",
+            "gloss": "YO SORDO • NECESITAR INTÉRPRETE LESCO",
+            "text": "Soy sordo/a, necesito un intérprete de LESCO si es posible"
+          },
+          {
+            "phrase": "Tengo cita médica programada para hoy",
+            "gloss": "HOY • CITA MÉDICA • PROGRAMADA",
+            "text": "Tengo cita médica programada para hoy"
+          },
+          {
+            "phrase": "Por favor escriba el número de consultorio",
+            "gloss": "POR FAVOR • ESCRIBIR • NÚMERO CONSULTORIO",
+            "text": "Por favor escriba el número de consultorio"
+          }
+        ]
+      },
+      {
+        "id": "farmacia",
+        "title": "Farmacia y Recetas",
+        "situationNum": 2,
+        "icon": "💊",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Vengo a retirar mis medicamentos de la receta",
+            "gloss": "RETIRAR • MEDICAMENTOS • RECETA",
+            "text": "Vengo a retirar mis medicamentos de la receta"
+          },
+          {
+            "phrase": "Por favor escriba los horarios de las pastillas",
+            "gloss": "ESCRIBIR • HORARIOS • PASTILLAS",
+            "text": "Por favor escriba los horarios de las pastillas"
+          }
+        ]
+      },
+      {
+        "id": "sintomas",
+        "title": "Dolor y Síntomas",
+        "situationNum": 3,
+        "icon": "🩺",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Tengo dolor fuerte en esta parte del cuerpo",
+            "gloss": "DOLOR FUERTE • CUERPO • MOSTRAR",
+            "text": "Tengo dolor fuerte en esta parte del cuerpo"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "banco",
+    "name": "Banco",
+    "subtitle": "Cuentas, tarjetas y caja",
+    "badge": "Finanzas y Trámites",
+    "icon": "🏦",
+    "themeColor": "#B7950B",
+    "bgColor": "#FEF9E7",
+    "borderColor": "#F9E79F",
+    "rompehielo": {
+      "phrase": "Hola, soy una persona sorda y vengo a realizar un trámite.",
+      "gloss": "HOLA • YO SORDO • VENIR TRÁMITE"
+    },
+    "situations": [
+      {
+        "id": "cuentas",
+        "title": "Tarjetas y Cuentas",
+        "situationNum": 1,
+        "icon": "💳",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Deseo abrir una cuenta de ahorros",
+            "gloss": "ABRIR • CUENTA AHORROS • BANCO",
+            "text": "Deseo abrir una cuenta de ahorros"
+          },
+          {
+            "phrase": "Vengo a retirar mi nueva tarjeta",
+            "gloss": "RETIRAR • NUEVA TARJETA • BANCO",
+            "text": "Vengo a retirar mi nueva tarjeta"
+          },
+          {
+            "phrase": "Mi tarjeta fue bloqueada o retenida por el cajero",
+            "gloss": "TARJETA • RETENIDA • CAJERO AUTOMÁTICO",
+            "text": "Mi tarjeta fue bloqueada o retenida por el cajero"
+          }
+        ]
+      },
+      {
+        "id": "caja",
+        "title": "Caja y Depósitos",
+        "situationNum": 2,
+        "icon": "💵",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Deseo hacer un depósito en efectivo",
+            "gloss": "DEPÓSITO • DINERO EFECTIVO • CAJA",
+            "text": "Deseo hacer un depósito en efectivo"
+          },
+          {
+            "phrase": "Por favor escriba el monto final en el papel",
+            "gloss": "POR FAVOR • ESCRIBIR • MONTO DINERO",
+            "text": "Por favor escriba el monto final en el papel"
+          }
+        ]
+      },
+      {
+        "id": "firmas",
+        "title": "Firmas y Requisitos",
+        "situationNum": 3,
+        "icon": "✍️",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Aquí está mi cédula de identidad",
+            "gloss": "AQUÍ • CÉDULA • BANCO",
+            "text": "Aquí está mi cédula de identidad"
+          },
+          {
+            "phrase": "¿Dónde debo firmar el documento?",
+            "gloss": "DÓNDE • FIRMAR • DOCUMENTO",
+            "text": "¿Dónde debo firmar el documento?"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "generales",
+    "name": "Mensajes generales",
+    "subtitle": "Saludos, dudas y cortesía",
+    "badge": "Comunicación Diaria",
+    "icon": "🗣️",
+    "themeColor": "#B5551A",
+    "bgColor": "#F3EADA",
+    "borderColor": "#EAE0D0",
+    "rompehielo": {
+      "phrase": "Hola, soy una persona sorda y necesito hacer una consulta.",
+      "gloss": "HOLA • YO SORDO • PREGUNTA"
+    },
+    "situations": [
+      {
+        "id": "saludos",
+        "title": "Saludos y Cortesía",
+        "situationNum": 1,
+        "icon": "👋",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "Hola, buenos días o buenas tardes",
+            "gloss": "HOLA • BUENOS DÍAS • SALUDO CORDIAL",
+            "text": "Hola, buenos días / buenas tardes"
+          },
+          {
+            "phrase": "Muchas gracias por su paciencia y ayuda",
+            "gloss": "MUCHAS GRACIAS • PACIENCIA • AYUDA",
+            "text": "Muchas gracias por su paciencia y ayuda"
+          }
+        ]
+      },
+      {
+        "id": "escrita",
+        "title": "Comunicación Escrita",
+        "situationNum": 2,
+        "icon": "✏️",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "¿Podría escribir las indicaciones por favor?",
+            "gloss": "POR FAVOR • ESCRIBIR PAPEL • CELULAR",
+            "text": "¿Podría escribir las indicaciones por favor?"
+          },
+          {
+            "phrase": "No comprendí bien, ¿puede repetirlo por escrito?",
+            "gloss": "NO ENTENDER • REPETIR • ESCRIBIR",
+            "text": "No comprendí bien, ¿puede repetirlo por escrito?"
+          }
+        ]
+      },
+      {
+        "id": "preguntas",
+        "title": "Preguntas y Filas",
+        "situationNum": 3,
+        "icon": "❓",
+        "description": "Revisa la seña en LESCO antes de mostrar la frase",
+        "phrases": [
+          {
+            "phrase": "¿Dónde se hace la fila preferencial?",
+            "gloss": "DÓNDE • FILA PREFERENCIAL • LEY 7600",
+            "text": "¿Dónde se hace la fila preferencial?"
+          },
+          {
+            "phrase": "¿Dónde están los servicios sanitarios?",
+            "gloss": "DÓNDE • BAÑO SANITARIO • UBICACIÓN",
+            "text": "¿Dónde están los servicios sanitarios?"
+          }
+        ]
+      }
+    ]
+  }
+]

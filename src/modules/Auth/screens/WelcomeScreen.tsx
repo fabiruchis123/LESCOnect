@@ -3,6 +3,7 @@ import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
+import { BrandLogo } from '@/shared/components';
 import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
 
 export function WelcomeScreen() {
@@ -44,10 +45,14 @@ export function WelcomeScreen() {
         {/* Tarjeta Central Hero */}
         <View style={welcomeStyles.heroCard}>
           <View style={welcomeStyles.iconCircle}>
-            <Text style={welcomeStyles.heroIcon}>🤟</Text>
+            <BrandLogo variant="hands" height={58} width={58} />
           </View>
 
-          <Text style={welcomeStyles.appName}>LESCOnect</Text>
+          <BrandLogo
+            variant="wordmark"
+            height={36}
+            containerStyle={{ marginBottom: 6, marginTop: 4 }}
+          />
           <Text style={welcomeStyles.appTagline}>Puente de comunicación e inclusión</Text>
 
           <View style={welcomeStyles.divider} />

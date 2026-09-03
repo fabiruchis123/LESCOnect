@@ -96,4 +96,4 @@ const mmkvStateStorage: StateStorage = {
 Antes de declarar completada cualquier tarea:
 1. Validar tipos con `npx tsc --noEmit`.
 2. Probar que el servidor local inicia sin advertencias (`npx expo config` / `npm run start`).
-3. Mantener y actualizar el archivo de reglas [`.agents/rules/proyecto-general.md`](file:///C:/Users/UTN/Documents/GitHub/LESCOnect/.agents/rules/proyecto-general.md).
+3. Mantener y actualizar el archivo de reglas [`.agents/rules/proyecto-general.md`](file:///.agents/rules/proyecto-general.md).

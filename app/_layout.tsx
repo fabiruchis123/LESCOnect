@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/shared/stores';
+import { AppLoadingSplash } from '@/shared/components';
 
 const queryClient = new QueryClient();
 
@@ -27,11 +28,7 @@ function NavigationLayout() {
   }, [isAuthenticated, isLoading, segments, router]);
 
   if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
-      </View>
-    );
+    return <AppLoadingSplash />;
   }
 
   return (
@@ -43,6 +40,12 @@ function NavigationLayout() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.title = 'LESCOnect — Puente de comunicación e inclusión';
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
