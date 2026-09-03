@@ -12,9 +12,9 @@ Asegúrate de contar con el siguiente entorno instalado en tu máquina:
 - **Expo Go App**: Disponible en iOS App Store y Android Play Store (para pruebas en dispositivo físico).
 - *(Opcional)* **Android Studio** o **Xcode** si deseas ejecutar en emulador/simulador nativo.
 
----
+## 📦 2. Instalar las dependencias exactas del proyecto
 
-# 3. Instalar las dependencias exactas del proyecto
+```bash
 npm install --legacy-peer-deps
 ```
 

@@ -6,3 +6,5 @@ export * from './AppInput';
 export * from './Badge';
 export * from './CategoryCard';
 export * from './LescoVideoModal';
+export * from './BrandLogo';
+export * from './AppLoadingSplash';

@@ -5,22 +5,27 @@
     "scheme": "lesconect",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/LESCOnect-Logo-manos.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/LESCOnect-Logo-manos.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FBF6EE"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#FBF6EE",
+        "foregroundImage": "./assets/LESCOnect-Logo-manos.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/LESCOnect-Logo-manos.png",
+      "name": "LESCOnect — Puente de comunicación e inclusión",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",

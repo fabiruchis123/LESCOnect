@@ -30,10 +30,7 @@ export function QuickMessagesBento({
           <View style={styles.bentoHeaderIconBox}>
             <Text style={styles.bentoHeaderEmoji}>💬</Text>
           </View>
-          <View>
-            <Text style={styles.bentoHeaderTitle}>Mensajes Rápidos</Text>
-            <Text style={styles.bentoHeaderSubtitle}>Frases directas por situación</Text>
-          </View>
+          <Text style={styles.bentoHeaderTitle}>Mensajes Rápidos</Text>
         </View>
 
         <TouchableOpacity

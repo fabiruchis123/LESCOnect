@@ -3,6 +3,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   Alert,
 } from 'react-native';
@@ -13,15 +14,10 @@ import {
   LescoVideoModal,
 } from '@/shared/components';
 import { colors } from '@/shared/theme/colors';
+import { haptics } from '@/shared/utils/haptics';
+import { SosContactsScreen } from './SosContactsScreen';
+import { EmergencyCategory, EmergenciesScreenProps } from '../types/emergencias.types';
 
-interface EmergencyCategory {
-  id: string;
-  title: string;
-  tag: string;
-  description: string;
-  icon: string;
-  phrase: string;
-}
 
 const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
   {
@@ -66,23 +62,26 @@ const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
   },
 ];
 
-export function EmergenciesScreen() {
+export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: EmergenciesScreenProps) {
   const router = useRouter();
   const [selectedVideoPhrase, setSelectedVideoPhrase] = useState<string | null>(null);
+  const [showSosContacts, setShowSosContacts] = useState(false);
+  // Estado de GPS: luz verde si está activo (predeterminado), gris si está desactivado
+  const [isGpsActive, setIsGpsActive] = useState(true);
 
   const handleDispatch911 = (category: EmergencyCategory) => {
     Alert.alert(
-      '🚨 Despacho Automático 9-1-1',
-      `¿Confirmas el despacho inmediato por "${category.title}" al 9-1-1 con tus coordenadas GPS actuales?`,
+      '🚨 Auxilio Inmediato 9-1-1',
+      `¿Confirmas el envío de auxilio por "${category.title}"? Tu ubicación GPS se adjuntará automáticamente en segundo plano.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'DESPACHAR ALERTA 🚨',
+          text: 'PEDIR AUXILIO 🚨',
           style: 'destructive',
           onPress: () => {
             Alert.alert(
-              '✅ Alerta 9-1-1 Transmitida',
-              'Tus coordenadas GPS (Lat: 9.9333, Lon: -84.0833) y reporte fueron enviados con éxito a la central del 9-1-1 y a tus contactos SOS.'
+              '✅ Alerta Transmitida',
+              'Tu reporte y geolocalización fueron enviados con éxito a la central del 9-1-1 y a tus contactos SOS. La ayuda va en camino.'
             );
           },
         },
@@ -90,54 +89,64 @@ export function EmergenciesScreen() {
     );
   };
 
+  if (showSosContacts) {
+    return <SosContactsScreen onBackPress={() => setShowSosContacts(false)} />;
+  }
+
   return (
     <ScreenWrapper scrollable backgroundColor={colors.background}>
       <View style={styles.content}>
-        {/* Volver a Inicio */}
-        <View style={styles.backRow}>
+        {/* Barra Superior Limpia con Emote GPS y Luz Verde/Gris */}
+        <View style={styles.topHeaderRow}>
           <Pressable
-            onPress={() => router.push('/(tabs)')}
-            style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}>
+            onPress={() => (onBackPress ? onBackPress() : router.push('/(tabs)'))}
+            style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a Inicio"
+          >
             <Text style={styles.backBtnText}>←</Text>
           </Pressable>
-          <Text style={styles.backLabel}>Volver a Inicio</Text>
+
+          {/* Indicador Minimalista: Emote GPS y Luz Verde/Gris */}
+          <TouchableOpacity
+            style={styles.gpsLightPill}
+            onPress={() => setIsGpsActive(!isGpsActive)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`GPS ${isGpsActive ? 'Activo' : 'Desactivado'}. Toca para alternar prueba de estado.`}
+          >
+            <Text style={styles.gpsPinEmoji}>📍</Text>
+            <View
+              style={[
+                styles.statusLightDot,
+                isGpsActive ? styles.lightDotGreen : styles.lightDotGray,
+              ]}
+            />
+            <Text style={styles.gpsLightText}>
+              {isGpsActive ? 'GPS Activo' : 'GPS Apagado'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Encabezado Institucional 9-1-1 */}
-        <View style={styles.badgeRow}>
-          <Badge
-            label="Orquestador Nacional 9-1-1 • Costa Rica"
-            variant="emergency"
-            showDot
-          />
-        </View>
-
-        <Text style={styles.pageTitle}>Despacho de Emergencias</Text>
+        <Text style={styles.pageTitle}>Emergencias 9-1-1</Text>
         <Text style={styles.pageSubtitle}>
-          Reporte accesible con geolocalización GPS para personas no oyentes
+          Toca tu situación para pedir auxilio inmediato con un solo toque
         </Text>
-
-        {/* CAJA DE GEOLOCALIZACIÓN GPS EN TIEMPO REAL */}
-        <View style={styles.gpsCard}>
-          <View style={styles.gpsHeaderRow}>
-            <View style={styles.gpsLeftRow}>
-              <Text style={styles.gpsPinEmoji}>📍</Text>
-              <Text style={styles.gpsTitle}>Ubicación GPS Actual</Text>
-            </View>
-            <Badge label="GPS Activo • Precisión 4m" variant="salvia" />
-          </View>
-
-          <Text style={styles.gpsCoordsText}>
-            San José, Costa Rica (Lat: 9.9333, Lon: -84.0833)
-          </Text>
-          <Text style={styles.gpsSubtext}>
-            Esta ubicación se adjuntará automáticamente al reporte del 9-1-1 junto a tu cédula.
-          </Text>
-        </View>
 
         {/* ACCESO A CONTACTOS SOS */}
         <Pressable
-          style={({ pressed }) => [styles.sosContactsCard, pressed && styles.pressed]}>
+          onPress={() => {
+            haptics.light();
+            if (onNavigateToSosContacts) {
+              onNavigateToSosContacts();
+            } else {
+              setShowSosContacts(true);
+            }
+          }}
+          style={({ pressed }) => [styles.sosContactsCard, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir red de contactos de emergencia SOS"
+        >
           <View style={styles.sosContactsLeftRow}>
             <View style={styles.sosContactsIconBox}>
               <Text style={styles.sosContactsEmoji}>👥</Text>
@@ -145,7 +154,7 @@ export function EmergenciesScreen() {
             <View style={styles.sosContactsTextFlex}>
               <Text style={styles.sosContactsTitle}>Red de Contactos SOS</Text>
               <Text style={styles.sosContactsSub}>
-                1 de 5 contactos registrados (se les alertará por SMS)
+                Gestiona tus contactos de auxilio rápido y avisos por SMS
               </Text>
             </View>
           </View>
@@ -154,12 +163,11 @@ export function EmergenciesScreen() {
           </View>
         </Pressable>
 
-        {/* LISTA DIRECTA DE SITUACIONES DE EMERGENCIA */}
+        {/* LISTA DIRECTA DE SITUACIONES DE EMERGENCIA (SIN RUIDO VISUAL) */}
         <View style={styles.listHeaderRow}>
           <Text style={styles.listHeaderTitle}>
             ¿Qué está sucediendo? Toca tu emergencia:
           </Text>
-          <Badge label="Despacho Automático 9-1-1" variant="emergency" />
         </View>
 
         <View style={styles.categoriesList}>
@@ -242,8 +250,46 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#7A6E5C',
   },
-  badgeRow: {
-    marginBottom: 8,
+  topHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  gpsLightPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#EAE0D0',
+    gap: 6,
+  },
+  gpsPinEmoji: {
+    fontSize: 14,
+  },
+  statusLightDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  lightDotGreen: {
+    backgroundColor: '#2E7D32',
+    shadowColor: '#2E7D32',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  lightDotGray: {
+    backgroundColor: '#9E9280',
+  },
+  gpsLightText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#2B241C',
   },
   pageTitle: {
     fontSize: 28,
@@ -257,47 +303,6 @@ const styles = StyleSheet.create({
     color: '#7A6E5C',
     fontWeight: '500',
     marginBottom: 16,
-  },
-  gpsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#EAE0D0',
-    marginBottom: 14,
-  },
-  gpsHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  gpsLeftRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  gpsPinEmoji: {
-    fontSize: 18,
-    marginRight: 6,
-  },
-  gpsTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#2B241C',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  gpsCoordsText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#2B241C',
-    marginBottom: 4,
-  },
-  gpsSubtext: {
-    fontSize: 11,
-    color: '#7A6E5C',
-    fontWeight: '500',
-    lineHeight: 15,
   },
   sosContactsCard: {
     backgroundColor: '#FFFFFF',

@@ -12,6 +12,8 @@ import { SecondaryActionsGrid } from '../components/SecondaryActionsGrid';
 import { LescoVideoModal, type LescoVideoInfo } from '../components/LescoVideoModal';
 import { styles } from '../styles/home.styles';
 import { HomeScreenProps } from '../types';
+import { HistoryScreen } from '@/modules/Historial';
+import { HelpScreen } from '@/modules/Ayuda';
 
 export function HomeScreen({
   onNavigateToTranslator,
@@ -23,10 +25,19 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const userName = user?.name || 'Pamela';
+  const userName = user?.nombre || user?.name || 'Génesis';
 
   // Estado para el modal de video LESCO
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
+  const [subView, setSubView] = useState<'home' | 'history' | 'help'>('home');
+
+  if (subView === 'history') {
+    return <HistoryScreen onBackPress={() => setSubView('home')} />;
+  }
+
+  if (subView === 'help') {
+    return <HelpScreen onBackPress={() => setSubView('home')} />;
+  }
 
   const handleOpenTutorial = (info: LescoVideoInfo) => {
     haptics.medium();
@@ -83,7 +94,16 @@ export function HomeScreen({
     if (onNavigateToHistory) {
       onNavigateToHistory();
     } else {
-      router.push('/(tabs)');
+      setSubView('history');
+    }
+  };
+
+  const handleHelp = () => {
+    haptics.light();
+    if (onNavigateToHelp) {
+      onNavigateToHelp();
+    } else {
+      setSubView('help');
     }
   };
 
@@ -148,13 +168,7 @@ export function HomeScreen({
         {/* 5. Prioridad 4 y 5: Historial y Ayuda LESCO */}
         <SecondaryActionsGrid
           onPressHistory={handleHistory}
-          onPressHelp={() =>
-            handleOpenTutorial({
-              title: 'Ayuda y Tutoriales LESCO',
-              category: 'Centro de Aprendizaje',
-              glossText: 'AYUDA PREGUNTAS / APRENDER USAR APLICACIÓN LESCO',
-            })
-          }
+          onPressHelp={handleHelp}
         />
       </ScrollView>
 

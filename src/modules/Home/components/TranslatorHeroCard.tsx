@@ -16,37 +16,17 @@ export function TranslatorHeroCard({
 }: TranslatorHeroCardProps) {
   return (
     <View style={styles.heroCard}>
-      {/* Fila Superior */}
-      <View style={styles.heroHeaderRow}>
-        <View style={styles.heroTagBadge}>
-          <Text style={styles.heroTagStar}>✦</Text>
-          <Text style={styles.heroTagText}>Función Principal</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.tutorialBtn}
-          onPress={onPressTutorial}
-          activeOpacity={0.7}
-          accessibilityLabel="Ver tutorial de señas"
-        >
-          <Text style={styles.tutorialIcon}>📹</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Título Central */}
       <View style={styles.heroTitleRow}>
         <View style={styles.heroIconCircle}>
           <Text style={styles.heroIconEmoji}>🤟</Text>
         </View>
-        <View>
-          <Text style={styles.heroTitleText}>Traductor LESCO</Text>
-          <Text style={styles.heroSubtitleText}>Traducción directa</Text>
-        </View>
+        <Text style={styles.heroTitleText}>Traductor LESCO</Text>
       </View>
 
       {/* Botones Apilados Verticalmente */}
       <View style={styles.heroActionsContainer}>
-        {/* 1. Señas a Voz / Texto */}
+        {/* 1. Señas a Voz */}
         <TouchableOpacity
           style={styles.heroActionButton}
           onPress={onPressSignsToText}
@@ -58,10 +38,7 @@ export function TranslatorHeroCard({
             <View style={[styles.heroActionIconBox, { backgroundColor: Colors.primary.surface }]}>
               <Text style={styles.heroActionEmoji}>📷</Text>
             </View>
-            <View>
-              <Text style={styles.heroActionTitle}>Señas a Voz</Text>
-              <Text style={styles.heroActionDesc}>Reconocimiento con cámara LESCO</Text>
-            </View>
+            <Text style={styles.heroActionTitle}>Señas a Voz</Text>
           </View>
           <View style={[styles.heroActionArrow, { backgroundColor: Colors.primary.surface }]}>
             <Text style={[styles.heroActionArrowText, { color: Colors.primary.main }]}>→</Text>
@@ -74,16 +51,13 @@ export function TranslatorHeroCard({
           onPress={onPressTextToSigns}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel="Traducción de Voz a Señas con dictado y clips"
+          accessibilityLabel="Traducción de Voz a Señas con dictado"
         >
           <View style={styles.heroActionLeft}>
             <View style={[styles.heroActionIconBox, { backgroundColor: Colors.secondary.surface }]}>
               <Text style={styles.heroActionEmoji}>🎙️</Text>
             </View>
-            <View>
-              <Text style={styles.heroActionTitle}>Voz a Señas</Text>
-              <Text style={styles.heroActionDesc}>Dictado y clips de señas</Text>
-            </View>
+            <Text style={styles.heroActionTitle}>Voz a Señas</Text>
           </View>
           <View style={[styles.heroActionArrow, { backgroundColor: Colors.secondary.surface }]}>
             <Text style={[styles.heroActionArrowText, { color: Colors.secondary.main }]}>→</Text>

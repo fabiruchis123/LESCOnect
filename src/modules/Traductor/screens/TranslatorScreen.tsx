@@ -1,440 +1,664 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Pressable,
+  Alert,
+  ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
-import {
-  ScreenWrapper,
-  AppHeader,
-  AppButton,
-  Badge,
-  AppCard,
-} from '@/shared/components';
-import { colors } from '@/shared/theme/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
+import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
+import { haptics } from '@/shared/utils/haptics';
+import { speechService } from '@/shared/utils/speech';
+import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+
+const QUICK_CHIPS = ['Hola', 'Por favor', 'Gracias', '¿Dónde queda?', 'Necesito ayuda'];
 
 export function TranslatorScreen() {
-  const [activeTab, setActiveTab] = useState<'signToText' | 'textToSign'>('signToText');
-  const [inputText, setInputText] = useState('');
-  const [isFlashActive, setIsFlashActive] = useState(false);
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const [mode, setMode] = useState<'signsToText' | 'textToSigns'>('signsToText');
+
+  // Sincronizar parámetro si proviene de otra vista
+  useEffect(() => {
+    if (params.mode === 'textToSigns' || params.mode === 'text_to_signs') {
+      setMode('textToSigns');
+    } else if (params.mode === 'signsToText' || params.mode === 'signs_to_text') {
+      setMode('signsToText');
+    }
+  }, [params.mode]);
+
+  // Estados Modo Cámara (Señas → Texto/Voz)
+  const [isDetecting, setIsDetecting] = useState(false);
   const [isFrontCamera, setIsFrontCamera] = useState(false);
-  const [lastRecognition, setLastRecognition] = useState(
-    'Hola, necesito asistencia para un trámite en ventanilla'
+  const [isFlashOn, setIsFlashOn] = useState(false);
+  const [transcribedText, setTranscribedText] = useState(
+    'Hola, buenos días. ¿Dónde puedo realizar este trámite?'
   );
 
+  // Estados Modo Texto/Voz (Texto/Voz → Señas)
+  const [inputText, setInputText] = useState('');
+  const [speed, setSpeed] = useState<'0.5x' | '0.75x' | '1x'>('1x');
+  const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
+
+  const handleToggleDetection = () => {
+    haptics.medium();
+    setIsDetecting((prev) => !prev);
+    if (!isDetecting) {
+      setTranscribedText('Detectando señas...');
+      setTimeout(() => {
+        setTranscribedText('Hola, necesito asistencia en ventanilla');
+        haptics.success();
+      }, 1200);
+    }
+  };
+
+  const handleSpeak = (text: string) => {
+    haptics.light();
+    speechService.speak(text);
+  };
+
+  const handleTranslateToSigns = () => {
+    if (!inputText.trim()) {
+      Alert.alert('Escribe una frase', 'Por favor ingresa texto para generar la seña en LESCO.');
+      return;
+    }
+    haptics.success();
+    setActiveVideo({
+      title: inputText.trim(),
+      category: 'Traducción a Señas',
+      glossText: inputText.trim().toUpperCase().split(' ').join(' • '),
+    });
+  };
+
+  const handleVoiceDictation = () => {
+    haptics.medium();
+    Alert.alert(
+      '🎙️ Dictado por Voz',
+      'Escuchando audio... Di tu frase con claridad.',
+      [
+        {
+          text: 'Simular "Buenas tardes, vengo a consultar"',
+          onPress: () => {
+            setInputText('Buenas tardes, vengo a consultar');
+          },
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  };
+
   return (
-    <ScreenWrapper scrollable backgroundColor={colors.background}>
-      <AppHeader
-        title="Traductor LESCO"
-        subtitle="Traducción bidireccional en tiempo real"
-        showUserBadge={false}
-      />
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FBF6EE" />
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Encabezado Principal */}
+        <Text style={styles.title}>Traductor LESCO</Text>
+        <Text style={styles.subtitle}>Traducción bidireccional en tiempo real</Text>
 
-      <View style={styles.content}>
-        {/* Selector de Modo (Tabs Señas↔Texto) */}
+        {/* Selector de Modo Directo (Pestañas Segmentadas en la cabecera) */}
         <View style={styles.tabBarContainer}>
-          <Pressable
-            onPress={() => setActiveTab('signToText')}
-            style={[
-              styles.tabButton,
-              activeTab === 'signToText' && styles.tabButtonActive,
-            ]}>
+          <TouchableOpacity
+            style={[styles.tabBtn, mode === 'signsToText' && styles.tabBtnActiveSigns]}
+            onPress={() => {
+              haptics.light();
+              setMode('signsToText');
+            }}
+            activeOpacity={0.8}
+          >
             <Text
               style={[
-                styles.tabText,
-                activeTab === 'signToText' && styles.tabTextActive,
-              ]}>
-              🤟 Señas a Texto
+                styles.tabBtnText,
+                mode === 'signsToText' && styles.tabBtnTextActiveSigns,
+              ]}
+            >
+              📷 Señas → Texto
             </Text>
-          </Pressable>
+          </TouchableOpacity>
 
-          <Pressable
-            onPress={() => setActiveTab('textToSign')}
-            style={[
-              styles.tabButton,
-              activeTab === 'textToSign' && styles.tabButtonActive,
-            ]}>
+          <TouchableOpacity
+            style={[styles.tabBtn, mode === 'textToSigns' && styles.tabBtnActiveText]}
+            onPress={() => {
+              haptics.light();
+              setMode('textToSigns');
+            }}
+            activeOpacity={0.8}
+          >
             <Text
               style={[
-                styles.tabText,
-                activeTab === 'textToSign' && styles.tabTextActive,
-              ]}>
-              ✍️ Texto a Señas
+                styles.tabBtnText,
+                mode === 'textToSigns' && styles.tabBtnTextActiveText,
+              ]}
+            >
+              💬 Texto → Señas
             </Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
 
-        {activeTab === 'signToText' ? (
-          /* MODO 1: SEÑAS A TEXTO (CÁMARA / INFERENCIA) */
-          <View style={styles.sectionContainer}>
-            {/* Visor de Cámara Mockup */}
-            <View style={styles.cameraViewport}>
-              {/* Overlay de Estado */}
-              <View style={styles.cameraHeaderOverlay}>
-                <Badge
-                  label="Inferencia LESCO • 30 FPS"
-                  variant="salvia"
-                  showDot
-                />
-                <Badge
-                  label={isFrontCamera ? 'Frontal' : 'Posterior'}
-                  variant="dark"
-                />
-              </View>
-
-              {/* Marco de Escaneo de Manos */}
-              <View style={styles.scannerFrame}>
-                <View style={[styles.corner, styles.topLeft]} />
-                <View style={[styles.corner, styles.topRight]} />
-                <View style={[styles.corner, styles.bottomLeft]} />
-                <View style={[styles.corner, styles.bottomRight]} />
-
-                <Text style={styles.scannerInstruction}>
-                  Ubica tus manos dentro del recuadro
+        {/* ======================================================= */}
+        {/* MODO 1: CÁMARA (SEÑAS → TEXTO / VOZ)                    */}
+        {/* ======================================================= */}
+        {mode === 'signsToText' && (
+          <View>
+            {/* Viewport de Cámara */}
+            <View style={styles.cameraBox}>
+              <View style={styles.statusBadge}>
+                <Text style={styles.statusBadgeText}>
+                  {isDetecting ? '🔴 Reconociendo LESCO' : '🟢 MediaPipe Listo'}
                 </Text>
               </View>
 
-              {/* Controles Flotantes Sobre Cámara */}
-              <View style={styles.cameraControlsOverlay}>
-                <Pressable
-                  onPress={() => setIsFlashActive(!isFlashActive)}
-                  style={[
-                    styles.circleControlBtn,
-                    isFlashActive && styles.circleControlBtnActive,
-                  ]}>
-                  <Text style={styles.controlIconText}>
-                    {isFlashActive ? '⚡' : '💡'}
-                  </Text>
-                </Pressable>
+              <View style={styles.frameGuide}>
+                <View style={styles.cameraIconBox}>
+                  <Text style={{ fontSize: 32 }}>📷</Text>
+                </View>
+                <Text style={styles.cameraTitle}>
+                  {isDetecting ? 'Mano detectada en el encuadre' : 'Vista de Cámara LESCO'}
+                </Text>
+                <Text style={styles.cameraSub}>
+                  Coloca tu mano dentro del encuadre para reconocer dactilología y señas
+                </Text>
+              </View>
 
-                <Pressable
-                  onPress={() => setIsFrontCamera(!isFrontCamera)}
-                  style={styles.circleControlBtn}>
-                  <Text style={styles.controlIconText}>🔄</Text>
-                </Pressable>
+              {/* Controles de Cámara */}
+              <View style={styles.cameraControlsRow}>
+                <TouchableOpacity
+                  style={[styles.camControlBtn, isFlashOn && styles.camControlBtnActive]}
+                  onPress={() => {
+                    haptics.light();
+                    setIsFlashOn(!isFlashOn);
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Alternar linterna"
+                >
+                  <Text style={styles.camControlIcon}>{isFlashOn ? '⚡' : '💡'}</Text>
+                </TouchableOpacity>
 
-                <Pressable style={styles.circleControlBtn}>
-                  <Text style={styles.controlIconText}>🔊</Text>
-                </Pressable>
-
-                <Pressable style={styles.circleControlBtn}>
-                  <Text style={styles.controlIconText}>⛶</Text>
-                </Pressable>
+                <TouchableOpacity
+                  style={styles.camControlBtn}
+                  onPress={() => {
+                    haptics.light();
+                    setIsFrontCamera(!isFrontCamera);
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Cambiar cámara"
+                >
+                  <Text style={styles.camControlIcon}>🔄</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
-            {/* Tarjeta de Salida Reconocida */}
-            <AppCard style={styles.recognitionCard} elevation={3}>
-              <View style={styles.recognitionHeader}>
-                <Text style={styles.recognitionTitle}>Traducción Detectada</Text>
-                <Badge label="98% Confianza" variant="terracota" />
+            {/* Área de Transcripción */}
+            <View style={styles.transcriptionCard}>
+              <View style={styles.transcriptionHeader}>
+                <Text style={styles.transcriptionLabel}>Texto transcrito:</Text>
+                <TouchableOpacity
+                  onPress={() => handleSpeak(transcribedText)}
+                  style={styles.ttsBtn}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 13, marginRight: 4 }}>🔊</Text>
+                  <Text style={styles.ttsBtnText}>Escuchar</Text>
+                </TouchableOpacity>
               </View>
 
-              <Text style={styles.recognitionText}>"{lastRecognition}"</Text>
+              <Text style={styles.transcribedText}>{transcribedText}</Text>
+            </View>
 
-              <View style={styles.recognitionActionsRow}>
-                <AppButton
-                  title="Copiar"
-                  variant="secondary"
-                  size="sm"
-                  fullWidth={false}
-                  iconLeft={<Text>📋</Text>}
-                  onPress={() => {}}
-                />
-                <AppButton
-                  title="Escuchar"
-                  variant="secondary"
-                  size="sm"
-                  fullWidth={false}
-                  iconLeft={<Text>🔊</Text>}
-                  onPress={() => {}}
-                />
-                <AppButton
-                  title="Guardar"
-                  variant="ghost"
-                  size="sm"
-                  fullWidth={false}
-                  iconLeft={<Text>⭐</Text>}
-                  onPress={() => {}}
-                />
-              </View>
-            </AppCard>
-          </View>
-        ) : (
-          /* MODO 2: TEXTO A SEÑAS (GENERADOR EN VIDEO) */
-          <View style={styles.sectionContainer}>
-            <AppCard style={styles.textInputCard}>
-              <Text style={styles.inputCardTitle}>Escribe tu mensaje</Text>
-              <Text style={styles.inputCardSubtitle}>
-                El intérprete virtual traducirá tus palabras a Lenguaje de Señas
+            {/* Botón Principal de Detección */}
+            <TouchableOpacity
+              style={[styles.actionBtn, isDetecting && styles.actionBtnStop]}
+              onPress={handleToggleDetection}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.actionBtnEmoji}>{isDetecting ? '⏹️' : '📷'}</Text>
+              <Text style={styles.actionBtnText}>
+                {isDetecting ? 'Pausar detección con cámara' : 'Iniciar detección con cámara'}
               </Text>
-
-              <TextInput
-                style={styles.textArea}
-                multiline
-                numberOfLines={4}
-                placeholder="Ejemplo: Por favor indíqueme dónde queda la ventanilla 3 de cobros..."
-                placeholderTextColor="#7A6E5C"
-                value={inputText}
-                onChangeText={setInputText}
-              />
-
-              <AppButton
-                title="Convertir a LESCO en Video 🤟"
-                variant="primary"
-                onPress={() => {}}
-              />
-            </AppCard>
-
-            {/* Visor de Video Avatar Mockup */}
-            <AppCard style={styles.videoPlayerCard}>
-              <View style={styles.videoPlayerViewport}>
-                <Text style={styles.avatarEmoji}>🧑‍🏫</Text>
-                <Text style={styles.videoStatusText}>
-                  Intérprete listo para reproducir
-                </Text>
-                <Badge label="Señas Oficiales LESCO CR" variant="salvia" />
-              </View>
-
-              <View style={styles.playerControlsRow}>
-                <AppButton
-                  title="Reproducir Señas ▶"
-                  variant="primary"
-                  size="sm"
-                  fullWidth={false}
-                  onPress={() => {}}
-                />
-                <AppButton
-                  title="Repetir 🔁"
-                  variant="secondary"
-                  size="sm"
-                  fullWidth={false}
-                  onPress={() => {}}
-                />
-              </View>
-            </AppCard>
+            </TouchableOpacity>
           </View>
         )}
-      </View>
-    </ScreenWrapper>
+
+        {/* ======================================================= */}
+        {/* MODO 2: REPRODUCTOR (TEXTO / VOZ → SEÑAS)               */}
+        {/* ======================================================= */}
+        {mode === 'textToSigns' && (
+          <View>
+            {/* Cuadro del Reproductor de Señas */}
+            <View style={styles.playerBox}>
+              <View style={styles.speedRow}>
+                {(['0.5x', '0.75x', '1x'] as const).map((s) => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[styles.speedChip, speed === s && styles.speedChipActive]}
+                    onPress={() => {
+                      haptics.light();
+                      setSpeed(s);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.speedChipText,
+                        speed === s && styles.speedChipTextActive,
+                      ]}
+                    >
+                      {s}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.iconCircle}>
+                <Text style={{ fontSize: 32 }}>🤟</Text>
+              </View>
+              <Text style={styles.playerTitle}>Reproductor de Señas LESCO</Text>
+              <Text style={styles.playerSub}>
+                Los clips secuenciales de señas se reproducirán aquí
+              </Text>
+            </View>
+
+            {/* Chips de Frases Rápidas */}
+            <View style={styles.quickChipsRow}>
+              {QUICK_CHIPS.map((chip) => (
+                <TouchableOpacity
+                  key={chip}
+                  style={styles.chip}
+                  onPress={() => {
+                    haptics.light();
+                    setInputText(chip);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.chipText}>{chip}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Entrada de Texto */}
+            <TextInput
+              style={styles.textArea}
+              placeholder="Escribe aquí lo que deseas traducir a señas LESCO..."
+              placeholderTextColor="#7A6E5C"
+              multiline
+              numberOfLines={4}
+              value={inputText}
+              onChangeText={setInputText}
+            />
+
+            {/* Botones de Acción */}
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={styles.translateBtn}
+                onPress={handleTranslateToSigns}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.translateBtnText}>Traducir a señas</Text>
+                <Text style={{ fontSize: 18 }}>🤟</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.dictationBtn}
+                onPress={handleVoiceDictation}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 16 }}>🎤</Text>
+                <Text style={styles.dictationBtnText}>Usar dictado por voz</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Modal Video LESCO */}
+      {activeVideo && (
+        <LescoVideoModal
+          visible={true}
+          videoInfo={activeVideo}
+          onClose={() => setActiveVideo(null)}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FBF6EE',
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xxxl * 2,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: Typography.weights.black,
+    color: '#2B241C',
+    letterSpacing: -0.5,
+    marginBottom: 2,
+  },
+  subtitle: {
+    fontSize: Typography.sizes.xs,
+    color: '#7A6E5C',
+    fontWeight: Typography.weights.medium,
+    marginBottom: Spacing.md,
   },
   tabBarContainer: {
     flexDirection: 'row',
     backgroundColor: '#F3EADA',
-    borderRadius: 18,
+    borderRadius: Radius.lg,
     padding: 4,
-    marginBottom: 16,
     borderWidth: 1.5,
     borderColor: '#EAE0D0',
+    marginBottom: Spacing.lg,
   },
-  tabButton: {
+  tabBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    borderRadius: Radius.md,
     alignItems: 'center',
-    borderRadius: 14,
+    justifyContent: 'center',
   },
-  tabButtonActive: {
+  tabBtnActiveSigns: {
     backgroundColor: '#FFFFFF',
-    shadowColor: '#2B241C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    ...Shadows.subtle,
   },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '700',
+  tabBtnActiveText: {
+    backgroundColor: '#FFFFFF',
+    ...Shadows.subtle,
+  },
+  tabBtnText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.bold,
     color: '#7A6E5C',
   },
-  tabTextActive: {
+  tabBtnTextActiveSigns: {
     color: '#B5551A',
   },
-  sectionContainer: {
-    width: '100%',
+  tabBtnTextActiveText: {
+    color: '#5C7A5C',
   },
-  cameraViewport: {
+  cameraBox: {
     width: '100%',
-    height: 340,
-    backgroundColor: '#1E1B18',
-    borderRadius: 24,
-    overflow: 'hidden',
-    justifyContent: 'space-between',
-    padding: 16,
+    height: 270,
+    backgroundColor: '#2B241C',
+    borderRadius: Radius.xl * 1.2,
     borderWidth: 2,
-    borderColor: '#3D342B',
-  },
-  cameraHeaderOverlay: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  scannerFrame: {
-    alignSelf: 'center',
-    width: 220,
-    height: 200,
+    borderColor: '#EAE0D0',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: Spacing.lg,
     position: 'relative',
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
+    ...Shadows.card,
   },
-  corner: {
+  statusBadge: {
     position: 'absolute',
-    width: 24,
-    height: 24,
-    borderColor: '#B5551A',
+    top: 14,
+    right: 14,
+    backgroundColor: '#5C7A5C',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.pill,
   },
-  topLeft: {
-    top: 0,
-    left: 0,
-    borderTopWidth: 3,
-    borderLeftWidth: 3,
-    borderTopLeftRadius: 8,
+  statusBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: Typography.weights.bold,
   },
-  topRight: {
-    top: 0,
-    right: 0,
-    borderTopWidth: 3,
-    borderRightWidth: 3,
-    borderTopRightRadius: 8,
-  },
-  bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: 3,
-    borderLeftWidth: 3,
-    borderBottomLeftRadius: 8,
-  },
-  bottomRight: {
-    bottom: 0,
-    right: 0,
-    borderBottomWidth: 3,
-    borderRightWidth: 3,
-    borderBottomRightRadius: 8,
-  },
-  scannerInstruction: {
-    color: '#F3EADA',
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  cameraControlsOverlay: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  circleControlBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  frameGuide: {
     alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+  },
+  cameraIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  cameraTitle: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.bold,
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  cameraSub: {
+    fontSize: 11,
+    color: '#EAE0D0',
+    opacity: 0.85,
+    textAlign: 'center',
+    maxWidth: 240,
+  },
+  cameraControlsRow: {
+    position: 'absolute',
+    bottom: 14,
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  camControlBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  circleControlBtnActive: {
+  camControlBtnActive: {
     backgroundColor: '#B5551A',
-    borderColor: '#F3EADA',
   },
-  controlIconText: {
-    fontSize: 18,
+  camControlIcon: {
+    fontSize: 16,
   },
-  recognitionCard: {
-    marginTop: 16,
+  transcriptionCard: {
     backgroundColor: '#FFFFFF',
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
     borderWidth: 2,
     borderColor: '#EAE0D0',
+    borderLeftWidth: 8,
+    borderLeftColor: '#B5551A',
+    marginBottom: Spacing.md,
+    ...Shadows.subtle,
   },
-  recognitionHeader: {
+  transcriptionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  recognitionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
+  transcriptionLabel: {
+    fontSize: 11,
+    fontWeight: Typography.weights.bold,
     color: '#7A6E5C',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  recognitionText: {
-    fontSize: 17,
-    fontWeight: '800',
+  ttsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3EADA',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+  },
+  ttsBtnText: {
+    fontSize: 11,
+    fontWeight: Typography.weights.bold,
+    color: '#B5551A',
+  },
+  transcribedText: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.black,
     color: '#2B241C',
     lineHeight: 24,
-    marginBottom: 16,
   },
-  recognitionActionsRow: {
+  actionBtn: {
+    width: '100%',
+    backgroundColor: '#B5551A',
+    paddingVertical: 14,
+    borderRadius: Radius.xl,
     flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  textInputCard: {
-    marginBottom: 16,
-  },
-  inputCardTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#2B241C',
-    marginBottom: 4,
-  },
-  inputCardSubtitle: {
-    fontSize: 13,
-    color: '#7A6E5C',
-    marginBottom: 14,
-  },
-  textArea: {
-    backgroundColor: '#FBF6EE',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#EAE0D0',
-    padding: 14,
-    fontSize: 15,
-    color: '#2B241C',
-    textAlignVertical: 'top',
-    minHeight: 100,
-    marginBottom: 14,
-  },
-  videoPlayerCard: {
-    backgroundColor: '#FFFFFF',
-  },
-  videoPlayerViewport: {
-    height: 220,
-    backgroundColor: '#F3EADA',
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
-    borderWidth: 1.5,
+    gap: Spacing.xs,
+    ...Shadows.primaryGlow,
+  },
+  actionBtnStop: {
+    backgroundColor: '#C0392B',
+  },
+  actionBtnEmoji: {
+    fontSize: 18,
+  },
+  actionBtnText: {
+    color: '#FFFFFF',
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.bold,
+  },
+  playerBox: {
+    width: '100%',
+    height: 260,
+    backgroundColor: '#2B241C',
+    borderRadius: Radius.xl * 1.2,
+    borderWidth: 2,
     borderColor: '#EAE0D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    position: 'relative',
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
+    ...Shadows.card,
   },
-  avatarEmoji: {
-    fontSize: 64,
-    marginBottom: 8,
-  },
-  videoStatusText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2B241C',
-    marginBottom: 8,
-  },
-  playerControlsRow: {
+  speedRow: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: Radius.pill,
+    padding: 3,
+    gap: 3,
+  },
+  speedChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+  },
+  speedChipActive: {
+    backgroundColor: '#5C7A5C',
+  },
+  speedChipText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 10,
+    fontWeight: Typography.weights.bold,
+  },
+  speedChipTextActive: {
+    color: '#FFFFFF',
+  },
+  iconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  playerTitle: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.bold,
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  playerSub: {
+    fontSize: 11,
+    color: '#EAE0D0',
+    opacity: 0.85,
+    textAlign: 'center',
+    maxWidth: 240,
+  },
+  quickChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  chip: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAE0D0',
+    borderRadius: Radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  chipText: {
+    fontSize: 11,
+    fontWeight: Typography.weights.bold,
+    color: '#2B241C',
+  },
+  textArea: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: Radius.xl,
+    borderWidth: 2,
+    borderColor: '#EAE0D0',
+    padding: Spacing.md,
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.medium,
+    color: '#2B241C',
+    minHeight: 90,
+    textAlignVertical: 'top',
+    marginBottom: Spacing.md,
+    ...Shadows.subtle,
+  },
+  actionButtons: {
+    gap: Spacing.sm,
+  },
+  translateBtn: {
+    width: '100%',
+    backgroundColor: '#5C7A5C',
+    paddingVertical: 14,
+    borderRadius: Radius.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    ...Shadows.subtle,
+  },
+  translateBtnText: {
+    color: '#FFFFFF',
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.bold,
+  },
+  dictationBtn: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#EAE0D0',
+    paddingVertical: 12,
+    borderRadius: Radius.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+  },
+  dictationBtnText: {
+    color: '#2B241C',
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.bold,
   },
 });

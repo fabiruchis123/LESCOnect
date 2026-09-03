@@ -1,11 +1,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Badge } from './Badge';
+import { BrandLogo } from './BrandLogo';
 import { useAuthStore } from '../stores/useAuthStore';
 
 interface AppHeaderProps {
   title?: string;
   subtitle?: string;
+  showBrandLogo?: boolean;
   showUserBadge?: boolean;
   showBackButton?: boolean;
   onBackPress?: () => void;
@@ -16,8 +18,9 @@ interface AppHeaderProps {
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
   title,
-  subtitle = 'Comunícate sin barreras',
-  showUserBadge = true,
+  subtitle,
+  showBrandLogo = false,
+  showUserBadge = false,
   showBackButton = false,
   onBackPress,
   onVideoTutorialPress,
@@ -25,8 +28,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   rightAction,
 }) => {
   const user = useAuthStore((state) => state.user);
-  const displayName = user?.nombre ? `¡Hola, ${user.nombre}! 👋` : '¡Hola! 👋';
-  const initial = user?.nombre ? user.nombre.charAt(0).toUpperCase() : 'L';
+  const rawName = user?.nombre || user?.name || '';
+  const firstName = rawName.trim().split(/\s+/)[0];
+  const displayName = firstName ? `¡Hola, ${firstName}! 👋` : '¡Hola! 👋';
+  const initial = firstName ? firstName.charAt(0).toUpperCase() : 'G';
 
   return (
     <View style={styles.headerContainer}>
@@ -40,6 +45,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         )}
 
         <View style={styles.titleContainer}>
+          {showBrandLogo && (
+            <BrandLogo
+              variant="wordmark"
+              height={22}
+              containerStyle={styles.brandLogoBox}
+            />
+          )}
+
           {showUserBadge && (
             <Badge
               label="LESCO Activo"
@@ -49,7 +62,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             />
           )}
 
-          <Text style={styles.titleText}>{title || displayName}</Text>
+          {title || !showBrandLogo ? (
+            <Text style={styles.titleText}>{title || displayName}</Text>
+          ) : null}
           {subtitle ? <Text style={styles.subtitleText}>{subtitle}</Text> : null}
         </View>
 
@@ -109,6 +124,10 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flex: 1,
+  },
+  brandLogoBox: {
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
   statusBadge: {
     marginBottom: 4,

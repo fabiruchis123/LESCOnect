@@ -8,27 +8,30 @@ import { haptics } from '@/shared/utils/haptics';
 import { Radius, Shadows, Spacing } from '@/shared/theme';
 import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
 
+import { EditProfileScreen } from './EditProfileScreen';
+import { TextSizeScreen } from './TextSizeScreen';
+import { VibrationScreen } from './VibrationScreen';
+
 export function ProfileScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const vibrationEnabled = useSettingsStore((state) => state.vibrationEnabled);
-  const toggleVibration = useSettingsStore((state) => state.toggleVibration);
-
-  const [currentView, setCurrentView] = useState<'menu' | 'vibration'>('menu');
+  const [currentView, setCurrentView] = useState<'menu' | 'editProfile' | 'textSize' | 'vibration'>('menu');
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
 
-  const handleToggleVib = () => {
-    toggleVibration();
-    // Emitir pulso táctil inmediato tanto al activar como al desactivar
-    haptics.test();
-  };
+  if (currentView === 'editProfile') {
+    return <EditProfileScreen onBackPress={() => setCurrentView('menu')} />;
+  }
 
-  const handleTestVib = () => {
-    haptics.test();
-  };
+  if (currentView === 'textSize') {
+    return <TextSizeScreen onBackPress={() => setCurrentView('menu')} />;
+  }
+
+  if (currentView === 'vibration') {
+    return <VibrationScreen onBackPress={() => setCurrentView('menu')} />;
+  }
 
   const handleAuthAction = () => {
     haptics.light();
@@ -48,167 +51,99 @@ export function ProfileScreen() {
     <SafeAreaView style={profileStyles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FBF6EE" />
 
-      {/* VISTA 1: SUB-PANTALLA DE VIBRACIÓN (Fiel al Prototipo) */}
-      {currentView === 'vibration' ? (
-        <ScrollView contentContainerStyle={profileStyles.scrollContainer} showsVerticalScrollIndicator={false}>
-          {/* Top Bar con Volver y Video LESCO */}
-          <View style={profileStyles.subHeaderRow}>
-            <TouchableOpacity
-              style={profileStyles.backButton}
-              onPress={() => {
-                haptics.light();
-                setCurrentView('menu');
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={profileStyles.backArrow}>←</Text>
-              <Text style={profileStyles.backText}>Volver al perfil</Text>
-            </TouchableOpacity>
+      {/* MENÚ DE PERFIL PRINCIPAL (Fiel al Prototipo) */}
+      <ScrollView contentContainerStyle={profileStyles.scrollContainer} showsVerticalScrollIndicator={false}>
+        {/* Título Superior */}
+        <View style={profileStyles.headerBox}>
+          <Text style={profileStyles.mainTitle}>Perfil</Text>
+          <Text style={profileStyles.mainSubtitle}>Configuración de tu cuenta</Text>
+        </View>
 
-            <TouchableOpacity
-              style={profileStyles.videoIconBtn}
-              onPress={() => {
-                haptics.light();
-                setActiveVideo({
-                  title: 'Configuración de Vibración',
-                  category: 'Accesibilidad Táctil',
-                  glossText: 'CONFIGURAR VIBRAR CELULAR / TOCAR BOTÓN CELULAR VIBRAR CONFIRMAR / MENSAJE LLEGAR SENTIR TACTO',
-                });
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 16 }}>📹</Text>
-            </TouchableOpacity>
+        {/* Avatar Cuadrado Redondeado Terracota */}
+        <View style={profileStyles.avatarBox}>
+          <View style={profileStyles.avatarCard}>
+            <Text style={profileStyles.avatarLetter}>{initial}</Text>
           </View>
+          <Text style={profileStyles.userName}>{displayName}</Text>
+          <Text style={profileStyles.userStatus}>{displaySubtitle}</Text>
+        </View>
 
-          {/* Título y Subtítulo */}
-          <View style={profileStyles.subTitleBox}>
-            <Text style={profileStyles.mainTitle}>Vibración</Text>
-            <Text style={profileStyles.mainSubtitle}>
-              Configuración de retroalimentación háptica
-            </Text>
-          </View>
-
-          {/* Tarjeta de Configuración de Vibración con Checkbox */}
+        {/* Lista de Opciones */}
+        <View style={profileStyles.optionsList}>
+          {/* Opción 1: Editar perfil */}
           <TouchableOpacity
-            style={profileStyles.vibrationCard}
-            onPress={handleToggleVib}
+            style={profileStyles.optionCard}
+            onPress={() => {
+              haptics.light();
+              setCurrentView('editProfile');
+            }}
             activeOpacity={0.85}
           >
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={profileStyles.cardTitle}>Activar vibración táctil</Text>
-              <Text style={profileStyles.cardSubtitle}>
-                Vibrar al tocar botones y al recibir mensajes
+            <View style={profileStyles.optionIconBox}>
+              <Text style={{ fontSize: 18 }}>✏️</Text>
+            </View>
+            <View style={profileStyles.optionTextBox}>
+              <Text style={profileStyles.optionTitle}>Editar perfil</Text>
+              <Text style={profileStyles.optionSubtitle}>Actualiza nombre, cédula y teléfonos</Text>
+            </View>
+            <View style={profileStyles.optionRight}>
+              <View style={profileStyles.videoPill}>
+                <Text style={{ fontSize: 13 }}>📹</Text>
+              </View>
+              <Text style={profileStyles.optionArrow}>→</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Opción 2: Tamaño de texto */}
+          <TouchableOpacity
+            style={profileStyles.optionCard}
+            onPress={() => {
+              haptics.light();
+              setCurrentView('textSize');
+            }}
+            activeOpacity={0.85}
+          >
+            <View style={[profileStyles.optionIconBox, { backgroundColor: '#EAF2F8' }]}>
+              <Text style={{ fontSize: 16 }}>🔤</Text>
+            </View>
+            <View style={profileStyles.optionTextBox}>
+              <Text style={profileStyles.optionTitle}>Tamaño de texto</Text>
+              <Text style={profileStyles.optionSubtitle}>Ajusta el tamaño de la letra</Text>
+            </View>
+            <View style={profileStyles.optionRight}>
+              <View style={[profileStyles.videoPill, { backgroundColor: '#EAF5EA' }]}>
+                <Text style={{ fontSize: 13 }}>📹</Text>
+              </View>
+              <Text style={profileStyles.optionArrow}>→</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Opción 3: Vibración */}
+          <TouchableOpacity
+            style={profileStyles.optionCard}
+            onPress={() => {
+              haptics.light();
+              setCurrentView('vibration');
+            }}
+            activeOpacity={0.85}
+          >
+            <View style={[profileStyles.optionIconBox, { backgroundColor: '#FEF9E7' }]}>
+              <Text style={{ fontSize: 18 }}>📳</Text>
+            </View>
+            <View style={profileStyles.optionTextBox}>
+              <Text style={profileStyles.optionTitle}>Vibración</Text>
+              <Text style={profileStyles.optionSubtitle}>
+                Ajustes táctiles y hápticos
               </Text>
             </View>
-
-            {/* Checkbox Visual Fiel al Prototipo */}
-            <View style={[profileStyles.checkbox, vibrationEnabled && profileStyles.checkboxActive]}>
-              {vibrationEnabled ? <Text style={profileStyles.checkboxCheck}>✓</Text> : null}
+            <View style={profileStyles.optionRight}>
+              <View style={[profileStyles.videoPill, { backgroundColor: '#FEF9E7' }]}>
+                <Text style={{ fontSize: 13 }}>📹</Text>
+              </View>
+              <Text style={profileStyles.optionArrow}>→</Text>
             </View>
           </TouchableOpacity>
-
-          {/* Botón de Prueba de Vibración */}
-          <TouchableOpacity
-            style={profileStyles.testVibButton}
-            onPress={handleTestVib}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 20 }}>📳</Text>
-            <Text style={profileStyles.testVibText}>Toca aquí para probar la vibración</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      ) : (
-        /* VISTA 2: MENÚ DE PERFIL PRINCIPAL (Fiel al Prototipo) */
-        <ScrollView contentContainerStyle={profileStyles.scrollContainer} showsVerticalScrollIndicator={false}>
-          {/* Título Superior */}
-          <View style={profileStyles.headerBox}>
-            <Text style={profileStyles.mainTitle}>Perfil</Text>
-            <Text style={profileStyles.mainSubtitle}>Configuración de tu cuenta</Text>
-          </View>
-
-          {/* Avatar Cuadrado Redondeado Terracota */}
-          <View style={profileStyles.avatarBox}>
-            <View style={profileStyles.avatarCard}>
-              <Text style={profileStyles.avatarLetter}>{initial}</Text>
-            </View>
-            <Text style={profileStyles.userName}>{displayName}</Text>
-            <Text style={profileStyles.userStatus}>{displaySubtitle}</Text>
-          </View>
-
-          {/* Lista de Opciones */}
-          <View style={profileStyles.optionsList}>
-            {/* Opción 1: Editar perfil */}
-            <TouchableOpacity
-              style={profileStyles.optionCard}
-              onPress={() => {
-                haptics.light();
-                router.push('/(auth)/signup');
-              }}
-              activeOpacity={0.85}
-            >
-              <View style={profileStyles.optionIconBox}>
-                <Text style={{ fontSize: 18 }}>✏️</Text>
-              </View>
-              <View style={profileStyles.optionTextBox}>
-                <Text style={profileStyles.optionTitle}>Editar perfil</Text>
-                <Text style={profileStyles.optionSubtitle}>Actualiza nombre, cédula y teléfonos</Text>
-              </View>
-              <View style={profileStyles.optionRight}>
-                <View style={profileStyles.videoPill}>
-                  <Text style={{ fontSize: 13 }}>📹</Text>
-                </View>
-                <Text style={profileStyles.optionArrow}>→</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Opción 2: Tamaño de texto */}
-            <TouchableOpacity
-              style={profileStyles.optionCard}
-              onPress={() => haptics.light()}
-              activeOpacity={0.85}
-            >
-              <View style={[profileStyles.optionIconBox, { backgroundColor: '#EAF2F8' }]}>
-                <Text style={{ fontSize: 16 }}>🔤</Text>
-              </View>
-              <View style={profileStyles.optionTextBox}>
-                <Text style={profileStyles.optionTitle}>Tamaño de texto</Text>
-                <Text style={profileStyles.optionSubtitle}>Ajusta el tamaño de la letra</Text>
-              </View>
-              <View style={profileStyles.optionRight}>
-                <View style={[profileStyles.videoPill, { backgroundColor: '#EAF5EA' }]}>
-                  <Text style={{ fontSize: 13 }}>📹</Text>
-                </View>
-                <Text style={profileStyles.optionArrow}>→</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Opción 3: Vibración */}
-            <TouchableOpacity
-              style={profileStyles.optionCard}
-              onPress={() => {
-                haptics.light();
-                setCurrentView('vibration');
-              }}
-              activeOpacity={0.85}
-            >
-              <View style={[profileStyles.optionIconBox, { backgroundColor: '#FEF9E7' }]}>
-                <Text style={{ fontSize: 18 }}>📳</Text>
-              </View>
-              <View style={profileStyles.optionTextBox}>
-                <Text style={profileStyles.optionTitle}>Vibración</Text>
-                <Text style={profileStyles.optionSubtitle}>
-                  {vibrationEnabled ? 'Activada (Táctil)' : 'Desactivada'}
-                </Text>
-              </View>
-              <View style={profileStyles.optionRight}>
-                <View style={[profileStyles.videoPill, { backgroundColor: '#FEF9E7' }]}>
-                  <Text style={{ fontSize: 13 }}>📹</Text>
-                </View>
-                <Text style={profileStyles.optionArrow}>→</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+        </View>
 
           {/* Botón Verde / Salvia Fiel al Prototipo */}
           <TouchableOpacity
@@ -221,7 +156,6 @@ export function ProfileScreen() {
             </Text>
           </TouchableOpacity>
         </ScrollView>
-      )}
 
       {/* Modal de Video LESCO explicativo */}
       {activeVideo ? (
