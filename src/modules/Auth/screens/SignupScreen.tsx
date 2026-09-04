@@ -1,7 +1,17 @@
-import React, { useState, useRef } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TouchableOpacity, View, Keyboard } from 'react-native';
+import React, { useState, useRef, useCallback } from 'react';
+import {
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+  Keyboard,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
 import { SignupForm } from '../components/SignupForm';
@@ -15,11 +25,32 @@ export function SignupScreen({ onSuccess }: SignupScreenProps) {
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Bloquear el botón 'Atrás' para que no regrese al video omitido
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => true;
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [])
+  );
+
   const handleSignup = (values: SignupFormValues) => {
     setIsLoading(true);
     const fullName = `${values.name} ${values.apellidos}`.trim();
 
     setTimeout(() => {
+      const initialSos = [];
+      if (values.emergencyContact || values.emergencyContactName) {
+        initialSos.push({
+          id: 'sos-1',
+          name: values.emergencyContactName || 'Contacto de Emergencia',
+          phone: values.emergencyContact || '',
+          relation: values.emergencyContactRelation || 'Familiar',
+          knowsLesco: values.emergencyContactKnowsLesco ?? false,
+          receivesSms: true,
+        });
+      }
+
       login(
         {
           id: Date.now().toString(),
@@ -32,6 +63,10 @@ export function SignupScreen({ onSuccess }: SignupScreenProps) {
           fechaNacimiento: values.birthDate,
           emergencyContact: values.emergencyContact,
           contactoEmergencia: values.emergencyContact,
+          contactoEmergenciaNombre: values.emergencyContactName,
+          contactoEmergenciaParentesco: values.emergencyContactRelation,
+          contactoEmergenciaSabeLesco: values.emergencyContactKnowsLesco,
+          sosContacts: initialSos,
         },
         'token-lesconect-persistent'
       );
