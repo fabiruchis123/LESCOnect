@@ -5,6 +5,9 @@ export interface SignupFormValues {
   phone: string;
   birthDate?: string;
   emergencyContact?: string;
+  emergencyContactName?: string;
+  emergencyContactRelation?: string;
+  emergencyContactKnowsLesco?: boolean;
 }
 
 export interface SignupErrors {
@@ -14,6 +17,8 @@ export interface SignupErrors {
   phone?: string;
   birthDate?: string;
   emergencyContact?: string;
+  emergencyContactName?: string;
+  emergencyContactRelation?: string;
 }
 
 export interface SignupScreenProps {

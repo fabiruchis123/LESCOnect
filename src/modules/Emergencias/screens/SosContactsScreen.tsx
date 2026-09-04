@@ -16,30 +16,42 @@ import { useRouter } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { useAuthStore } from '@/shared/stores/useAuthStore';
+import { formatCRPhone } from '@/modules/Auth/components/ContactPickerModal';
 import { SosContact, SosContactsScreenProps } from '../types/emergencias.types';
-
-const INITIAL_SOS_CONTACTS: SosContact[] = [
-  {
-    id: '1',
-    name: 'Mamá / Familiar Principal',
-    phone: '8888-8888',
-    relation: 'Familiar SOS',
-    knowsLesco: true,
-    receivesSms: true,
-  },
-  {
-    id: '2',
-    name: 'Carlos Murillo',
-    phone: '8765-4321',
-    relation: 'Intérprete LESCO',
-    knowsLesco: true,
-    receivesSms: true,
-  },
-];
 
 export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
   const router = useRouter();
-  const [contacts, setContacts] = useState<SosContact[]>(INITIAL_SOS_CONTACTS);
+  const user = useAuthStore((state) => state.user);
+  const updateUser = useAuthStore((state) => state.updateUser);
+
+  // Contactos SOS 100% reales derivados del perfil del usuario
+  const contacts: SosContact[] = React.useMemo(() => {
+    if (user?.sosContacts && user.sosContacts.length > 0) {
+      return user.sosContacts as SosContact[];
+    }
+    if (user?.contactoEmergenciaNombre || user?.contactoEmergencia || user?.emergencyContact) {
+      return [
+        {
+          id: 'sos-primary',
+          name: user.contactoEmergenciaNombre || 'Contacto SOS',
+          phone: user.contactoEmergencia || user.emergencyContact || '',
+          relation: user.contactoEmergenciaParentesco || 'Familiar SOS',
+          knowsLesco: user.contactoEmergenciaSabeLesco ?? true,
+          receivesSms: true,
+        },
+      ];
+    }
+    return [];
+  }, [
+    user?.sosContacts,
+    user?.contactoEmergenciaNombre,
+    user?.contactoEmergencia,
+    user?.emergencyContact,
+    user?.contactoEmergenciaParentesco,
+    user?.contactoEmergenciaSabeLesco,
+  ]);
+
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
 
@@ -97,7 +109,8 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
           style: 'destructive',
           onPress: () => {
             haptics.light();
-            setContacts((prev) => prev.filter((c) => c.id !== id));
+            const updated = contacts.filter((c) => c.id !== id);
+            updateUser({ sosContacts: updated });
           },
         },
       ]
@@ -116,16 +129,19 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
     }
 
     haptics.success();
+    const formattedPhone = formatCRPhone(newPhone);
     const newContact: SosContact = {
       id: Date.now().toString(),
       name: newName.trim(),
-      phone: newPhone.trim(),
+      phone: formattedPhone,
       relation: newRelation.trim() || 'Contacto SOS',
       knowsLesco,
       receivesSms,
     };
 
-    setContacts((prev) => [...prev, newContact]);
+    const updated = [...contacts, newContact];
+    updateUser({ sosContacts: updated });
+
     // Limpiar formulario
     setNewName('');
     setNewPhone('');
@@ -282,13 +298,22 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
 
           {/* Lista Dinámica de Contactos */}
           <View style={styles.contactsList}>
-            {contacts.map((contact, index) => (
-              <View key={contact.id} style={styles.contactItem}>
-                <View style={styles.contactLeft}>
-                  {/* Número indexado */}
-                  <View style={styles.indexCircle}>
-                    <Text style={styles.indexCircleText}>{index + 1}</Text>
-                  </View>
+            {contacts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={{ fontSize: 36, marginBottom: 8 }}>📇</Text>
+                <Text style={styles.emptyTitle}>Sin contactos SOS registrados</Text>
+                <Text style={styles.emptySub}>
+                  Toca el botón "+ Agregar" arriba para registrar un contacto de auxilio rápido para emergencias.
+                </Text>
+              </View>
+            ) : (
+              contacts.map((contact, index) => (
+                <View key={contact.id} style={styles.contactItem}>
+                  <View style={styles.contactLeft}>
+                    {/* Número indexado */}
+                    <View style={styles.indexCircle}>
+                      <Text style={styles.indexCircleText}>{index + 1}</Text>
+                    </View>
 
                   <View style={styles.contactInfo}>
                     <Text style={styles.contactName}>{contact.name}</Text>
@@ -313,7 +338,7 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
                   </View>
                 </View>
 
-                {/* Acciones de Llamada, SMS y Borrar */}
+                {/* Acciones de Llamada, Mensaje (SMS) y Borrar */}
                 <View style={styles.actionsRow}>
                   <TouchableOpacity
                     style={styles.callBtn}
@@ -329,7 +354,7 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
                     style={styles.smsActionBtn}
                     onPress={() => handleSms(contact.phone)}
                     activeOpacity={0.8}
-                    accessibilityLabel={`Enviar SMS a ${contact.name}`}
+                    accessibilityLabel={`Enviar mensaje a ${contact.name}`}
                   >
                     <Text style={styles.smsActionBtnIcon}>💬</Text>
                   </TouchableOpacity>
@@ -346,7 +371,7 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
                   )}
                 </View>
               </View>
-            ))}
+            )))}
           </View>
         </View>
       </ScrollView>
@@ -704,5 +729,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#C0392B',
     fontWeight: 'bold',
+  },
+  emptyContainer: {
+    backgroundColor: '#FBF6EE',
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+    borderWidth: 1.5,
+    borderColor: '#EAE0D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: Typography.weights.bold,
+    color: '#2B241C',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  emptySub: {
+    fontSize: 12,
+    color: '#7A6E5C',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: Spacing.sm,
   },
 });
