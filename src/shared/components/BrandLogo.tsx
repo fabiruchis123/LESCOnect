@@ -41,8 +41,8 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     width ?? (isHands ? resolvedHeight : Math.round(resolvedHeight * WORDMARK_ASPECT_RATIO));
 
   const imageSource = isHands
-    ? require('@/../assets/LESCOnect-Logo-manos.png')
-    : require('@/../assets/images/LESCOnect-letra-tight.png');
+    ? require('../../../assets/LESCOnect-Logo-manos.png')
+    : require('../../../assets/images/LESCOnect-letra-tight.png');
 
   const defaultLabel = isHands
     ? 'Logotipo de LESCOnect: Manos comunicando en señas'

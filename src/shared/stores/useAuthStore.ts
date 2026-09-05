@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist, StateStorage } from 'zustand/middleware';
 
+export interface SosContactItem {
+  id: string;
+  name: string;
+  phone: string;
+  relation?: string;
+  knowsLesco?: boolean;
+  receivesSms?: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -12,6 +21,10 @@ export interface User {
   fechaNacimiento?: string;
   emergencyContact?: string;
   contactoEmergencia?: string;
+  contactoEmergenciaNombre?: string;
+  contactoEmergenciaParentesco?: string;
+  contactoEmergenciaSabeLesco?: boolean;
+  sosContacts?: SosContactItem[];
   email?: string;
   avatarUrl?: string;
   role?: string;
@@ -87,7 +100,9 @@ export const useAuthStore = create<AuthState>()(
         cedula: '5-0454-0188',
         telefono: '8888-8888',
         phone: '8888-8888',
-        contactoEmergencia: '8765-4321',
+        contactoEmergencia: '',
+        contactoEmergenciaNombre: '',
+        sosContacts: [],
       },
       token: 'mock-token-lesconect',
       isAuthenticated: true,

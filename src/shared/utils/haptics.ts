@@ -37,6 +37,17 @@ export const haptics = {
   },
 
   /**
+   * Pulso de advertencia o error en formulario
+   */
+  warning: () => {
+    if (!useSettingsStore.getState().vibrationEnabled) return;
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      Vibration.vibrate(180);
+    } catch {}
+  },
+
+  /**
    * Patrón de vibración continuo e insistente para emergencias SOS 9-1-1
    */
   emergency: () => {

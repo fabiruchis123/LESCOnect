@@ -10,7 +10,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.xxxl * 2,
-    gap: Spacing.lg,
+    gap: Spacing.xl,
   },
 
   // Header
@@ -18,7 +18,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   headerLeft: {
     flex: 1,
@@ -41,8 +41,8 @@ export const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   headerVideoButton: {
-    width: 48,
-    height: 48,
+    width: 46,
+    height: 46,
     borderRadius: Radius.md,
     backgroundColor: Colors.primary.surface,
     borderColor: Colors.border.subtle,
@@ -52,16 +52,16 @@ export const styles = StyleSheet.create({
     ...Shadows.subtle,
   },
   headerVideoIcon: {
-    fontSize: 22,
+    fontSize: 20,
   },
   avatarButton: {
-    width: 48,
-    height: 48,
+    width: 46,
+    height: 46,
     borderRadius: Radius.md,
     backgroundColor: Colors.primary.main,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2.5,
     borderColor: Colors.primary.surface,
     ...Shadows.subtle,
   },
@@ -74,7 +74,7 @@ export const styles = StyleSheet.create({
   // Hero Card - Traductor (Terracota)
   heroCard: {
     backgroundColor: Colors.primary.main,
-    borderRadius: Radius.xl,
+    borderRadius: 22,
     padding: Spacing.xl,
     borderWidth: 2,
     borderColor: Colors.primary.light,
@@ -128,8 +128,8 @@ export const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   heroIconCircle: {
-    width: 52,
-    height: 52,
+    width: 50,
+    height: 50,
     borderRadius: Radius.md,
     backgroundColor: Colors.background.card,
     alignItems: 'center',
@@ -139,7 +139,7 @@ export const styles = StyleSheet.create({
     ...Shadows.subtle,
   },
   heroIconEmoji: {
-    fontSize: 28,
+    fontSize: 26,
   },
   heroTitleText: {
     fontSize: Typography.sizes.xl,
@@ -163,7 +163,8 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: Colors.background.card,
     borderRadius: Radius.lg,
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderWidth: 2,
     borderColor: '#FFFFFF',
     ...Shadows.subtle,
@@ -175,14 +176,14 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   heroActionIconBox: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: Radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   heroActionEmoji: {
-    fontSize: 22,
+    fontSize: 20,
   },
   heroActionTitle: {
     fontSize: Typography.sizes.md,
@@ -210,8 +211,9 @@ export const styles = StyleSheet.create({
   // Emergencias Banner (Coral)
   emergencyBanner: {
     backgroundColor: Colors.emergency.main,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
+    borderRadius: 20,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md + 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -280,8 +282,8 @@ export const styles = StyleSheet.create({
   // Bento Mensajes Rápidos
   bentoCard: {
     backgroundColor: Colors.background.card,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
+    borderRadius: 22,
+    padding: Spacing.lg + 2,
     borderWidth: 2,
     borderColor: Colors.border.subtle,
     ...Shadows.card,
@@ -290,7 +292,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.md + 2,
   },
   bentoHeaderLeft: {
     flexDirection: 'row',
@@ -336,15 +338,15 @@ export const styles = StyleSheet.create({
   bentoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
+    gap: Spacing.sm + 2,
   },
   bentoGridItem: {
-    width: '48.5%',
+    width: '48.2%',
     backgroundColor: Colors.background.main,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
-    borderRadius: Radius.md,
-    padding: Spacing.sm,
+    borderRadius: Radius.lg,
+    padding: Spacing.sm + 2,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
@@ -381,9 +383,9 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.background.card,
     borderWidth: 2,
     borderColor: Colors.border.subtle,
-    borderRadius: Radius.xl,
-    padding: Spacing.md,
-    height: 120,
+    borderRadius: 22,
+    padding: Spacing.lg,
+    height: 125,
     justifyContent: 'space-between',
     ...Shadows.subtle,
   },
