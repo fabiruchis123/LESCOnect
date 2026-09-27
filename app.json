@@ -13,14 +13,21 @@
       "backgroundColor": "#FBF6EE"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Permite a LESCOnect acceder a la cámara para traducir señas dactilológicas en tiempo real."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FBF6EE",
         "foregroundImage": "./assets/LESCOnect-Logo-manos.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/LESCOnect-Logo-manos.png",
@@ -29,7 +36,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permite a LESCOnect acceder a la cámara para traducir señas dactilológicas en tiempo real."
+        }
+      ]
     ]
   }
 }
