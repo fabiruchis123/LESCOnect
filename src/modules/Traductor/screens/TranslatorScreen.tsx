@@ -14,7 +14,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { speechService } from '@/shared/utils/speech';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
+import { SignsToTextScreen } from './SignsToTextScreen';
 
 const QUICK_CHIPS = ['Hola', 'Por favor', 'Gracias', '¿Dónde queda?', 'Necesito ayuda'];
 
@@ -94,12 +95,13 @@ export function TranslatorScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FBF6EE" />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Encabezado Principal */}
+
+      {/* Encabezado Principal Limpio y Fijo */}
+      <View style={styles.fixedHeader}>
         <Text style={styles.title}>Traductor LESCO</Text>
         <Text style={styles.subtitle}>Traducción bidireccional en tiempo real</Text>
 
-        {/* Selector de Modo Directo (Pestañas Segmentadas en la cabecera) */}
+        {/* Selector de Modo */}
         <View style={styles.tabBarContainer}>
           <TouchableOpacity
             style={[styles.tabBtn, mode === 'signsToText' && styles.tabBtnActiveSigns]}
@@ -137,97 +139,23 @@ export function TranslatorScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* ======================================================= */}
-        {/* MODO 1: CÁMARA (SEÑAS → TEXTO / VOZ)                    */}
-        {/* ======================================================= */}
-        {mode === 'signsToText' && (
-          <View>
-            {/* Viewport de Cámara */}
-            <View style={styles.cameraBox}>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusBadgeText}>
-                  {isDetecting ? '🔴 Reconociendo LESCO' : '🟢 MediaPipe Listo'}
-                </Text>
-              </View>
+      {/* ======================================================= */}
+      {/* MODO 1: CÁMARA (SEÑAS → TEXTO / VOZ CON ABECEDARIO)     */}
+      {/* ======================================================= */}
+      {mode === 'signsToText' && (
+        <View style={{ flex: 1 }}>
+          <SignsToTextScreen />
+        </View>
+      )}
 
-              <View style={styles.frameGuide}>
-                <View style={styles.cameraIconBox}>
-                  <Text style={{ fontSize: 32 }}>📷</Text>
-                </View>
-                <Text style={styles.cameraTitle}>
-                  {isDetecting ? 'Mano detectada en el encuadre' : 'Vista de Cámara LESCO'}
-                </Text>
-                <Text style={styles.cameraSub}>
-                  Coloca tu mano dentro del encuadre para reconocer dactilología y señas
-                </Text>
-              </View>
-
-              {/* Controles de Cámara */}
-              <View style={styles.cameraControlsRow}>
-                <TouchableOpacity
-                  style={[styles.camControlBtn, isFlashOn && styles.camControlBtnActive]}
-                  onPress={() => {
-                    haptics.light();
-                    setIsFlashOn(!isFlashOn);
-                  }}
-                  activeOpacity={0.8}
-                  accessibilityLabel="Alternar linterna"
-                >
-                  <Text style={styles.camControlIcon}>{isFlashOn ? '⚡' : '💡'}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.camControlBtn}
-                  onPress={() => {
-                    haptics.light();
-                    setIsFrontCamera(!isFrontCamera);
-                  }}
-                  activeOpacity={0.8}
-                  accessibilityLabel="Cambiar cámara"
-                >
-                  <Text style={styles.camControlIcon}>🔄</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Área de Transcripción */}
-            <View style={styles.transcriptionCard}>
-              <View style={styles.transcriptionHeader}>
-                <Text style={styles.transcriptionLabel}>Texto transcrito:</Text>
-                <TouchableOpacity
-                  onPress={() => handleSpeak(transcribedText)}
-                  style={styles.ttsBtn}
-                  activeOpacity={0.7}
-                >
-                  <Text style={{ fontSize: 13, marginRight: 4 }}>🔊</Text>
-                  <Text style={styles.ttsBtnText}>Escuchar</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.transcribedText}>{transcribedText}</Text>
-            </View>
-
-            {/* Botón Principal de Detección */}
-            <TouchableOpacity
-              style={[styles.actionBtn, isDetecting && styles.actionBtnStop]}
-              onPress={handleToggleDetection}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.actionBtnEmoji}>{isDetecting ? '⏹️' : '📷'}</Text>
-              <Text style={styles.actionBtnText}>
-                {isDetecting ? 'Pausar detección con cámara' : 'Iniciar detección con cámara'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ======================================================= */}
-        {/* MODO 2: REPRODUCTOR (TEXTO / VOZ → SEÑAS)               */}
-        {/* ======================================================= */}
-        {mode === 'textToSigns' && (
-          <View>
-            {/* Cuadro del Reproductor de Señas */}
+      {/* ======================================================= */}
+      {/* MODO 2: REPRODUCTOR (TEXTO / VOZ → SEÑAS)               */}
+      {/* ======================================================= */}
+      {mode === 'textToSigns' && (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Cuadro del Reproductor de Señas */}
             <View style={styles.playerBox}>
               <View style={styles.speedRow}>
                 {(['0.5x', '0.75x', '1x'] as const).map((s) => (
@@ -309,9 +237,8 @@ export function TranslatorScreen() {
                 <Text style={styles.dictationBtnText}>Usar dictado por voz</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </ScrollView>
         )}
-      </ScrollView>
 
       {/* Modal Video LESCO */}
       {activeVideo && (
@@ -335,8 +262,13 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.xxxl * 2,
   },
+  fixedHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xs,
+    backgroundColor: '#FBF6EE',
+  },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: Typography.weights.black,
     color: '#2B241C',
     letterSpacing: -0.5,
