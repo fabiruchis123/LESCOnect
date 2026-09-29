@@ -1442,6 +1442,35 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+
+              {/* Palabras Frecuentes extendidas horizontalmente sin círculos */}
+              <View style={styles.frequentWordsHeaderRow}>
+                <Text style={styles.frequentWordsSubtitle}>Palabras Frecuentes LESCO</Text>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.frequentWordsContainer}
+              >
+                {LESCO_DICTIONARY.filter(item => item.category === 'palabra').map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.frequentWordCard}
+                    onPress={() => handleAddSign(item.letter)}
+                    onLongPress={() => {
+                      haptics.light();
+                      setModalSign(item);
+                    }}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Escribir ${item.name}`}
+                  >
+                    <Text style={styles.frequentWordCardText}>{item.letter}</Text>
+                    <Text style={styles.frequentWordCardSub}>{item.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           </>
         ) : (
@@ -1481,29 +1510,61 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
             </View>
 
             <View style={styles.gridContainer}>
-              {filteredDictionary.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.gridCard}
-                  onPress={() => {
-                    haptics.medium();
-                    setModalSign(item);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.gridCardTop}>
-                    <View style={styles.gridBadgeCircle}>
-                      <Text style={styles.gridBadgeText}>{item.letter}</Text>
+              {filteredDictionary.map((item) => {
+                const isWord = item.category === 'palabra';
+
+                if (isWord) {
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.wordCardHorizontal}
+                      onPress={() => {
+                        haptics.medium();
+                        setModalSign(item);
+                      }}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${item.name}. ${item.description}`}
+                    >
+                      <View style={styles.wordCardHeaderRow}>
+                        <Text style={styles.wordTextHorizontal}>{item.letter}</Text>
+                        <View style={styles.wordRightPills}>
+                          <Text style={styles.gridDiffBadge}>{item.difficulty}</Text>
+                          <Text style={styles.gridCardAction}>Ver postura oficial →</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.wordCardTitle}>{item.name}</Text>
+                      <Text style={styles.wordCardDesc} numberOfLines={2}>
+                        {item.description}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.gridCard}
+                    onPress={() => {
+                      haptics.medium();
+                      setModalSign(item);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.gridCardTop}>
+                      <View style={styles.gridBadgeCircle}>
+                        <Text style={styles.gridBadgeText}>{item.letter}</Text>
+                      </View>
+                      <Text style={styles.gridDiffBadge}>{item.difficulty}</Text>
                     </View>
-                    <Text style={styles.gridDiffBadge}>{item.difficulty}</Text>
-                  </View>
-                  <Text style={styles.gridCardTitle}>{item.name}</Text>
-                  <Text style={styles.gridCardDesc} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                  <Text style={styles.gridCardAction}>Ver postura oficial →</Text>
-                </TouchableOpacity>
-              ))}
+                    <Text style={styles.gridCardTitle}>{item.name}</Text>
+                    <Text style={styles.gridCardDesc} numberOfLines={2}>
+                      {item.description}
+                    </Text>
+                    <Text style={styles.gridCardAction}>Ver postura oficial →</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         )}
@@ -1520,9 +1581,15 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
           <View style={styles.modalBackdrop}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <View style={styles.modalLetterCircle}>
-                  <Text style={styles.modalLetterBig}>{modalSign.letter}</Text>
-                </View>
+                {modalSign.category === 'palabra' ? (
+                  <View style={styles.modalWordBadge}>
+                    <Text style={styles.modalWordBadgeText}>{modalSign.letter}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.modalLetterCircle}>
+                    <Text style={styles.modalLetterBig}>{modalSign.letter}</Text>
+                  </View>
+                )}
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.modalTitle}>{modalSign.name}</Text>
                   <Text style={styles.modalDiff}>Dificultad: {modalSign.difficulty}</Text>
@@ -2021,6 +2088,46 @@ const styles = StyleSheet.create({
     color: '#7A6E5C',
     marginTop: 2,
   },
+  frequentWordsHeaderRow: {
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  frequentWordsSubtitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#7A6E5C',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  frequentWordsContainer: {
+    paddingRight: 20,
+    paddingVertical: 6,
+    gap: 8,
+  },
+  frequentWordCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#EAE0D0',
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    minHeight: 46,
+    justifyContent: 'center',
+    marginRight: 6,
+    ...Shadows.subtle,
+  },
+  frequentWordCardText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#B5551A',
+    letterSpacing: 0.5,
+  },
+  frequentWordCardSub: {
+    fontSize: 10,
+    color: '#7A6E5C',
+    fontWeight: '600',
+    marginTop: 1,
+  },
   alphabetGrid: {
     paddingTop: Spacing.xs,
   },
@@ -2119,6 +2226,45 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#B5551A',
   },
+  wordCardHorizontal: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#EAE0D0',
+    marginBottom: 8,
+    ...Shadows.subtle,
+  },
+  wordCardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  wordTextHorizontal: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#B5551A',
+    letterSpacing: 0.5,
+  },
+  wordRightPills: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  wordCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#2B241C',
+    marginBottom: 3,
+  },
+  wordCardDesc: {
+    fontSize: 11,
+    color: '#7A6E5C',
+    lineHeight: 15,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(20, 15, 10, 0.65)',
@@ -2140,6 +2286,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: Spacing.md,
+  },
+  modalWordBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#B5551A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalWordBadgeText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   modalLetterCircle: {
     width: 48,

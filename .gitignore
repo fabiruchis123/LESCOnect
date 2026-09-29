@@ -145,3 +145,7 @@ vite.config.ts.timestamp-*
 # Expo
 .expo/
 
+# IDE local agent skills
+.agents/skills/*
+!.agents/skills/lesconect-dev-workflow/
+

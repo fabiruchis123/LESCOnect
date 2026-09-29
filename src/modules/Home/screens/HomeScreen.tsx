@@ -131,44 +131,58 @@ export function HomeScreen({
         <TranslatorHeroCard
           onPressSignsToText={handleSignsToText}
           onPressTextToSigns={handleTextToSigns}
-          onPressTutorial={() =>
+          onPressSignsTutorial={() =>
             handleOpenTutorial({
-              title: 'Traductor LESCO',
-              category: 'Señas ↔ Voz y Texto',
-              glossText: 'CÁMARA VER TÚ HACER SEÑAS / CONVERTIR VOZ TEXTO / OTRA PERSONA HABLAR TÚ VER SEÑAS',
+              title: 'Señas a Voz',
+              category: 'Traductor LESCO',
+              glossText: 'CÁMARA APUNTAR MANOS / HACER SEÑAS LESCO / APLICACIÓN TRADUCIR VOZ TEXTO HABLAR',
+            })
+          }
+          onPressTextTutorial={() =>
+            handleOpenTutorial({
+              title: 'Voz a Señas',
+              category: 'Traductor LESCO',
+              glossText: 'PERSONA HABLAR MICRÓFONO / APLICACIÓN ESCUCHAR / MOSTRAR SEÑAS EN PANTALLA',
             })
           }
         />
 
-        {/* 3. Prioridad 2: Emergencias 9-1-1 SOS (Coral Urgente) */}
+        {/* 3. Emergencias (Coral) */}
         <EmergencyBanner
           onPress={handleEmergencies}
           onPressTutorial={() =>
             handleOpenTutorial({
-              title: 'Emergencias 9-1-1 SOS',
-              category: 'Auxilio y Seguridad',
-              glossText: 'EMERGENCIA AUXILIO 9-1-1 / TOCAR BOTÓN / BOMBEROS POLICÍA AMBULANCIA LLEGAR GPS',
+              title: 'Módulo de Emergencias 911',
+              category: 'Emergencias SOS',
+              glossText: 'EMERGENCIA 911 SOS / POLICÍA AMBULANCIA BOMBEROS / UBICACIÓN ENVIAR RÁPIDO',
             })
           }
         />
 
-        {/* 4. Prioridad 3: Mensajes Rápidos Bento Grid */}
+        {/* 4. Trámites Rápidos */}
         <QuickMessagesBento
           onPressViewAll={() => handleTramites()}
           onPressCategory={(id) => handleTramites(id)}
-          onPressTutorial={(id) =>
-            handleOpenTutorial({
-              title: `Trámites - ${id.toUpperCase()}`,
-              category: 'Frases y Asistencia Presencial',
-              glossText: `TOCAR MOSTRAR PANTALLA GIGANTE / FUNCIONARIO LEER AYUDAR ${id.toUpperCase()}`,
-            })
-          }
         />
 
         {/* 5. Prioridad 4 y 5: Historial y Ayuda LESCO */}
         <SecondaryActionsGrid
           onPressHistory={handleHistory}
           onPressHelp={handleHelp}
+          onPressHistoryTutorial={() =>
+            handleOpenTutorial({
+              title: 'Historial de Conversaciones',
+              category: 'Historial',
+              glossText: 'HISTORIAL MENSAJES ANTES / BUSCAR COPIAR BORRAR CONVERSACIONES GUARDADAS',
+            })
+          }
+          onPressHelpTutorial={() =>
+            handleOpenTutorial({
+              title: 'Ayuda y Recursos LESCO',
+              category: 'Ayuda LESCO',
+              glossText: 'AYUDA PREGUNTAS FRECUENTES / APRENDER LESCO CULTURA SORDA CONTACTO SOPORTE',
+            })
+          }
         />
       </ScrollView>
 

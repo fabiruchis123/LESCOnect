@@ -128,12 +128,8 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.pageTitle}>Emergencias 9-1-1</Text>
-        <Text style={styles.pageSubtitle}>
-          Toca tu situación para pedir auxilio inmediato con un solo toque
-        </Text>
 
-        {/* ACCESO A CONTACTOS SOS */}
+
         <Pressable
           onPress={() => {
             haptics.light();
@@ -151,24 +147,14 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
             <View style={styles.sosContactsIconBox}>
               <Text style={styles.sosContactsEmoji}>👥</Text>
             </View>
-            <View style={styles.sosContactsTextFlex}>
-              <Text style={styles.sosContactsTitle}>Red de Contactos SOS</Text>
-              <Text style={styles.sosContactsSub}>
-                Gestiona tus contactos de auxilio rápido y avisos por SMS
-              </Text>
-            </View>
+            <Text style={styles.sosContactsTitle}>Red de Contactos SOS</Text>
           </View>
           <View style={styles.sosContactsArrow}>
             <Text style={styles.sosContactsArrowText}>→</Text>
           </View>
         </Pressable>
 
-        {/* LISTA DIRECTA DE SITUACIONES DE EMERGENCIA (SIN RUIDO VISUAL) */}
-        <View style={styles.listHeaderRow}>
-          <Text style={styles.listHeaderTitle}>
-            ¿Qué está sucediendo? Toca tu emergencia:
-          </Text>
-        </View>
+
 
         <View style={styles.categoriesList}>
           {EMERGENCY_CATEGORIES.map((cat) => (
@@ -177,15 +163,7 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
                 <View style={styles.catIconBox}>
                   <Text style={styles.catEmoji}>{cat.icon}</Text>
                 </View>
-                <View style={styles.catTextFlex}>
-                  <View style={styles.catTitleBadgeRow}>
-                    <Text style={styles.catTitle}>{cat.title}</Text>
-                    <View style={styles.catTagPill}>
-                      <Text style={styles.catTagText}>{cat.tag}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.catDesc}>{cat.description}</Text>
-                </View>
+                <Text style={styles.catTitle}>{cat.title}</Text>
               </View>
 
               <View style={styles.catButtonsGrid}>
@@ -193,7 +171,7 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
                   onPress={() => setSelectedVideoPhrase(cat.phrase)}
                   style={({ pressed }) => [styles.lescoBtn, pressed && styles.pressed]}>
                   <Text style={styles.btnEmoji}>📹</Text>
-                  <Text style={styles.lescoBtnText}>Ver seña LESCO</Text>
+                  <Text style={styles.lescoBtnText}>Ver seña</Text>
                 </Pressable>
 
                 <Pressable
@@ -444,44 +422,53 @@ const styles = StyleSheet.create({
   catButtonsGrid: {
     flexDirection: 'row',
     gap: 10,
+    marginTop: 2,
   },
   lescoBtn: {
     flex: 1,
     backgroundColor: '#F3EADA',
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingVertical: 16,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#EAE0D0',
+    minHeight: 56,
   },
   lescoBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
     color: '#B5551A',
     marginLeft: 6,
   },
   dispatchBtn: {
-    flex: 1,
+    flex: 2,
     backgroundColor: '#C0392B',
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingVertical: 16,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 56,
+    shadowColor: '#C0392B',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   dispatchBtnText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '900',
     color: '#FFFFFF',
     marginLeft: 6,
+    letterSpacing: 0.3,
   },
   btnEmoji: {
-    fontSize: 14,
+    fontSize: 16,
   },
   pressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.9,
+    transform: [{ scale: 0.97 }],
+    opacity: 0.88,
   },
 });
