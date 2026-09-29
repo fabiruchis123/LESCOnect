@@ -95,8 +95,8 @@ export function classifyWithKNN(
   const nearest = distances.slice(0, k);
 
   // Distancia máxima aceptable (umbral de confianza)
-  // Si el más cercano está muy lejos, rechazamos la predicción
-  if (nearest[0].dist > 1.5) return null;
+  // 2.2 permite variaciones naturales de manos y ángulos sin rechazar señas válidas
+  if (nearest[0].dist > 2.2) return null;
 
   // Votación ponderada por distancia inversa
   const votes: Record<string, number> = {};
