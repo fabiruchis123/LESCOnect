@@ -8,8 +8,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
+import { Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
+import { useSettingsStore } from '@/shared/stores';
 import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
 
 interface TextSizeScreenProps {
@@ -25,7 +26,9 @@ const TEXT_OPTIONS = [
 
 export function TextSizeScreen({ onBackPress }: TextSizeScreenProps) {
   const router = useRouter();
-  const [selectedSize, setSelectedSize] = useState<number>(16);
+  const fontSizeNumber = useSettingsStore((state) => state.fontSizeNumber || 16);
+  const setTextSize = useSettingsStore((state) => state.setTextSize);
+  const [savedFeedback, setSavedFeedback] = useState(false);
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
 
   const handleBack = () => {
@@ -38,8 +41,12 @@ export function TextSizeScreen({ onBackPress }: TextSizeScreenProps) {
   };
 
   const handleSelectSize = (size: number) => {
-    haptics.light();
-    setSelectedSize(size);
+    haptics.medium();
+    setTextSize(size);
+    setSavedFeedback(true);
+    setTimeout(() => {
+      setSavedFeedback(false);
+    }, 2500);
   };
 
   return (
@@ -68,53 +75,80 @@ export function TextSizeScreen({ onBackPress }: TextSizeScreenProps) {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.title}>Tamaño de texto</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Tamaño de texto</Text>
+          {savedFeedback && (
+            <View style={styles.savedBadge}>
+              <Text style={styles.savedBadgeText}>✓ Guardado</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.subtitle}>Ajusta la legibilidad según tu preferencia visual</Text>
 
         {/* Tarjeta de Previsualización en Tiempo Real */}
         <View style={styles.previewCard}>
-          <Text style={styles.previewLabel}>Vista previa:</Text>
-          <Text style={[styles.previewText, { fontSize: selectedSize, lineHeight: selectedSize * 1.35 }]}>
+          <View style={styles.previewHeader}>
+            <Text style={styles.previewLabel}>Vista previa en tiempo real:</Text>
+            <Text style={styles.previewSizeIndicator}>{fontSizeNumber}px</Text>
+          </View>
+          <Text
+            style={[
+              styles.previewText,
+              { fontSize: fontSizeNumber, lineHeight: Math.round(fontSizeNumber * 1.35) },
+            ]}
+          >
             "Hola, soy una persona sorda. Necesito que nos comuniquemos por medio de esta pantalla."
           </Text>
         </View>
 
         {/* Opciones de Tamaño */}
         <View style={styles.optionsList}>
-          {TEXT_OPTIONS.map((opt) => (
-            <TouchableOpacity
-              key={opt.size}
-              style={[
-                styles.optionBtn,
-                selectedSize === opt.size && styles.optionBtnActive,
-              ]}
-              onPress={() => handleSelectSize(opt.size)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.optionLeft}>
-                <View
-                  style={[
-                    styles.radioCircle,
-                    selectedSize === opt.size && styles.radioCircleActive,
-                  ]}
-                >
-                  {selectedSize === opt.size && <View style={styles.radioDot} />}
-                </View>
-
-                <View>
-                  <Text
+          {TEXT_OPTIONS.map((opt) => {
+            const isSelected = fontSizeNumber === opt.size;
+            return (
+              <TouchableOpacity
+                key={opt.size}
+                style={[
+                  styles.optionBtn,
+                  isSelected && styles.optionBtnActive,
+                ]}
+                onPress={() => handleSelectSize(opt.size)}
+                activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={`${opt.label}. ${opt.desc}`}
+              >
+                <View style={styles.optionLeft}>
+                  <View
                     style={[
-                      styles.optionLabel,
-                      selectedSize === opt.size && styles.optionLabelActive,
+                      styles.radioCircle,
+                      isSelected && styles.radioCircleActive,
                     ]}
                   >
-                    {opt.label}
-                  </Text>
-                  <Text style={styles.optionDesc}>{opt.desc}</Text>
+                    {isSelected && <View style={styles.radioDot} />}
+                  </View>
+
+                  <View>
+                    <Text
+                      style={[
+                        styles.optionLabel,
+                        isSelected && styles.optionLabelActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                    <Text style={styles.optionDesc}>{opt.desc}</Text>
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+
+                {isSelected && (
+                  <View style={styles.activeCheckPill}>
+                    <Text style={styles.activeCheckText}>Activo</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -183,12 +217,30 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.bold,
     color: '#5C7A5C',
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
   title: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: Typography.weights.black,
     color: '#2B241C',
     letterSpacing: -0.5,
-    marginBottom: 2,
+  },
+  savedBadge: {
+    backgroundColor: '#EAF5EA',
+    borderWidth: 1,
+    borderColor: '#5C7A5C',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+  },
+  savedBadgeText: {
+    fontSize: 11,
+    fontWeight: Typography.weights.bold,
+    color: '#5C7A5C',
   },
   subtitle: {
     fontSize: Typography.sizes.xs,
@@ -207,13 +259,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...Shadows.subtle,
   },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   previewLabel: {
     fontSize: 10,
     fontWeight: Typography.weights.black,
     color: '#B5551A',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 6,
+  },
+  previewSizeIndicator: {
+    fontSize: 11,
+    fontWeight: Typography.weights.black,
+    color: '#7A6E5C',
+    backgroundColor: '#F3EADA',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
   },
   previewText: {
     fontWeight: Typography.weights.bold,
@@ -241,6 +307,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
+    flex: 1,
   },
   radioCircle: {
     width: 22,
@@ -272,5 +339,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#7A6E5C',
     marginTop: 1,
+  },
+  activeCheckPill: {
+    backgroundColor: '#B5551A',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+  },
+  activeCheckText: {
+    fontSize: 10,
+    fontWeight: Typography.weights.bold,
+    color: '#FFFFFF',
   },
 });

@@ -7,12 +7,16 @@ interface TranslatorHeroCardProps {
   onPressSignsToText?: () => void;
   onPressTextToSigns?: () => void;
   onPressTutorial?: () => void;
+  onPressSignsTutorial?: () => void;
+  onPressTextTutorial?: () => void;
 }
 
 export function TranslatorHeroCard({
   onPressSignsToText,
   onPressTextToSigns,
   onPressTutorial,
+  onPressSignsTutorial,
+  onPressTextTutorial,
 }: TranslatorHeroCardProps) {
   return (
     <View style={styles.heroCard}>
@@ -40,8 +44,31 @@ export function TranslatorHeroCard({
             </View>
             <Text style={styles.heroActionTitle}>Señas a Voz</Text>
           </View>
-          <View style={[styles.heroActionArrow, { backgroundColor: Colors.primary.surface }]}>
-            <Text style={[styles.heroActionArrowText, { color: Colors.primary.main }]}>→</Text>
+
+          <View style={styles.heroActionRight}>
+            <TouchableOpacity
+              style={[
+                styles.heroTutorialBtn,
+                { backgroundColor: Colors.primary.surface, borderColor: Colors.border.subtle },
+              ]}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                if (onPressSignsTutorial) {
+                  onPressSignsTutorial();
+                } else if (onPressTutorial) {
+                  onPressTutorial();
+                }
+              }}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Ver tutorial de Señas a Voz en LESCO"
+            >
+              <Text style={styles.heroTutorialIcon}>📹</Text>
+            </TouchableOpacity>
+
+            <View style={[styles.heroActionArrow, { backgroundColor: Colors.primary.surface }]}>
+              <Text style={[styles.heroActionArrowText, { color: Colors.primary.main }]}>→</Text>
+            </View>
           </View>
         </TouchableOpacity>
 
@@ -59,8 +86,31 @@ export function TranslatorHeroCard({
             </View>
             <Text style={styles.heroActionTitle}>Voz a Señas</Text>
           </View>
-          <View style={[styles.heroActionArrow, { backgroundColor: Colors.secondary.surface }]}>
-            <Text style={[styles.heroActionArrowText, { color: Colors.secondary.main }]}>→</Text>
+
+          <View style={styles.heroActionRight}>
+            <TouchableOpacity
+              style={[
+                styles.heroTutorialBtn,
+                { backgroundColor: Colors.secondary.surface, borderColor: Colors.secondary.border },
+              ]}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                if (onPressTextTutorial) {
+                  onPressTextTutorial();
+                } else if (onPressTutorial) {
+                  onPressTutorial();
+                }
+              }}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Ver tutorial de Voz a Señas en LESCO"
+            >
+              <Text style={styles.heroTutorialIcon}>📹</Text>
+            </TouchableOpacity>
+
+            <View style={[styles.heroActionArrow, { backgroundColor: Colors.secondary.surface }]}>
+              <Text style={[styles.heroActionArrowText, { color: Colors.secondary.main }]}>→</Text>
+            </View>
           </View>
         </TouchableOpacity>
       </View>

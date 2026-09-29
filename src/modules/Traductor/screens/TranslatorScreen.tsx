@@ -14,7 +14,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { speechService } from '@/shared/utils/speech';
-import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
+import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
 import { SignsToTextScreen } from './SignsToTextScreen';
 
 const QUICK_CHIPS = ['Hola', 'Por favor', 'Gracias', '¿Dónde queda?', 'Necesito ayuda'];

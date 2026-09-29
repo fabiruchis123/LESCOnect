@@ -30,20 +30,19 @@ export function QuickMessagesBento({
           <View style={styles.bentoHeaderIconBox}>
             <Text style={styles.bentoHeaderEmoji}>💬</Text>
           </View>
-          <Text style={styles.bentoHeaderTitle}>Mensajes Rápidos</Text>
+          <Text style={styles.bentoHeaderTitle}>Trámites Rápidos</Text>
         </View>
 
         <TouchableOpacity
           style={styles.bentoViewAllBtn}
           onPress={onPressViewAll}
           activeOpacity={0.7}
-          accessibilityLabel="Ver todos los mensajes rápidos"
+          accessibilityLabel="Ver todos los trámites rápidos"
         >
           <Text style={styles.bentoViewAllText}>Ver todos →</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Grid 2x2 */}
       <View style={styles.bentoGrid}>
         {CATEGORIES.map((cat) => {
           const catColors = Colors.categories[cat.themeKey];
@@ -53,6 +52,8 @@ export function QuickMessagesBento({
               style={styles.bentoGridItem}
               onPress={() => onPressCategory?.(cat.id)}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={cat.title}
             >
               <View
                 style={[
@@ -62,28 +63,9 @@ export function QuickMessagesBento({
               >
                 <Text style={styles.bentoItemEmoji}>{cat.icon}</Text>
               </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bentoItemTitle} numberOfLines={1}>
-                  {cat.title}
-                </Text>
-                <Text style={styles.bentoItemSubtitle} numberOfLines={1}>
-                  {cat.subtitle}
-                </Text>
-              </View>
-
-              {/* Botón LESCO individual */}
-              <TouchableOpacity
-                onPress={() => onPressTutorial?.(cat.id)}
-                style={{
-                  padding: 4,
-                  borderRadius: 6,
-                  backgroundColor: 'rgba(0,0,0,0.04)',
-                }}
-                accessibilityLabel={`Ver señas de ${cat.title}`}
-              >
-                <Text style={{ fontSize: 12 }}>📹</Text>
-              </TouchableOpacity>
+              <Text style={styles.bentoItemTitle} numberOfLines={1}>
+                {cat.title}
+              </Text>
             </TouchableOpacity>
           );
         })}

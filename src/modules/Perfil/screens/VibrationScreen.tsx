@@ -13,13 +13,17 @@ import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
 
+import { useSettingsStore } from '@/shared/stores';
+
 interface VibrationScreenProps {
   onBackPress?: () => void;
 }
 
 export function VibrationScreen({ onBackPress }: VibrationScreenProps) {
   const router = useRouter();
-  const [isVibrationEnabled, setIsVibrationEnabled] = useState(true);
+  const isVibrationEnabled = useSettingsStore((state) => state.vibrationEnabled);
+  const setVibrationEnabled = useSettingsStore((state) => state.setVibrationEnabled);
+  const fontScale = useSettingsStore((state) => state.fontScale || 1.0);
   const [intensity, setIntensity] = useState<'suave' | 'media' | 'fuerte'>('media');
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
 
@@ -82,7 +86,7 @@ export function VibrationScreen({ onBackPress }: VibrationScreenProps) {
               value={isVibrationEnabled}
               onValueChange={(val) => {
                 haptics.light();
-                setIsVibrationEnabled(val);
+                setVibrationEnabled(val);
               }}
               trackColor={{ false: '#EAE0D0', true: Colors.primary.border }}
               thumbColor={isVibrationEnabled ? Colors.primary.main : '#FFFFFF'}

@@ -34,8 +34,8 @@ export default function TabsLayout() {
         listeners={{ tabPress: () => haptics.light() }}
         options={{
           title: 'Inicio',
-          tabBarIcon: ({ color, focused }) => (
-            <Text style={[styles.tabIcon, { color }]}>{focused ? '🏠' : '🏚️'}</Text>
+          tabBarIcon: ({ color }) => (
+            <Text style={[styles.tabIcon, { color }]}>🏠</Text>
           ),
         }}
       />

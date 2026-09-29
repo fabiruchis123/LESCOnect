@@ -5,9 +5,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -52,15 +50,7 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
     user?.contactoEmergenciaSabeLesco,
   ]);
 
-  const [isFormVisible, setIsFormVisible] = useState(false);
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
-
-  // Campos del formulario
-  const [newName, setNewName] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newRelation, setNewRelation] = useState('');
-  const [knowsLesco, setKnowsLesco] = useState(false);
-  const [receivesSms, setReceivesSms] = useState(true);
 
   const handleBack = () => {
     haptics.light();
@@ -117,38 +107,13 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
     );
   };
 
-  const handleSaveContact = () => {
-    if (!newName.trim() || !newPhone.trim()) {
-      Alert.alert('Campos Requeridos', 'Por favor ingresa el nombre y teléfono del contacto.');
-      return;
-    }
-
+  const handleAddContact = () => {
     if (contacts.length >= 5) {
-      Alert.alert('Límite Alcanzado', 'El límite máximo es de 5 contactos SOS.');
+      Alert.alert('Límite Alcanzado', 'Ya tienes el máximo de 5 contactos SOS.');
       return;
     }
-
-    haptics.success();
-    const formattedPhone = formatCRPhone(newPhone);
-    const newContact: SosContact = {
-      id: Date.now().toString(),
-      name: newName.trim(),
-      phone: formattedPhone,
-      relation: newRelation.trim() || 'Contacto SOS',
-      knowsLesco,
-      receivesSms,
-    };
-
-    const updated = [...contacts, newContact];
-    updateUser({ sosContacts: updated });
-
-    // Limpiar formulario
-    setNewName('');
-    setNewPhone('');
-    setNewRelation('');
-    setKnowsLesco(false);
-    setReceivesSms(true);
-    setIsFormVisible(false);
+    haptics.light();
+    router.push('/add-sos-contact');
   };
 
   return (
@@ -162,39 +127,16 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
           <Text style={styles.backBtnLabel}>Volver a Emergencias</Text>
 
           {/* Botón de Video LESCO explicativo */}
-          <TouchableOpacity
-            style={styles.lescoHelpBtn}
-            onPress={() =>
-              setActiveVideo({
-                title: 'Contactos de Emergencia SOS',
-                category: 'Red de Auxilio en Señas',
-                glossText: 'CONTACTO FAMILIAR AMIGO / EMERGENCIAS SOS / LLAMAR MENSAJE AYUDA RÁPIDO',
-              })
-            }
-            activeOpacity={0.8}
-            accessibilityLabel="Ver explicación de contactos SOS en señas LESCO"
-          >
-            <Text style={{ fontSize: 13, marginRight: 4 }}>📹</Text>
-            <Text style={styles.lescoHelpBtnText}>Ver en señas</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Header Principal */}
-        <View style={styles.badgeRow}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Red de Auxilio</Text>
-          </View>
-        </View>
         <Text style={styles.title}>Contactos SOS</Text>
-        <Text style={styles.subtitle}>Mínimo 1 y máximo 5 contactos de auxilio rápido</Text>
 
         {/* Tarjeta Principal de Contactos */}
         <View style={styles.card}>
           {/* Header de la Tarjeta con Contador y Botón + Agregar */}
           <View style={styles.cardHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.countTitle}>{contacts.length} de 5 contactos registrados</Text>
-              <Text style={styles.countSub}>Toca llamar o enviar SMS para auxilio inmediato</Text>
+              <Text style={styles.countTitle}>{contacts.length} de 5</Text>
             </View>
 
             <TouchableOpacity
@@ -202,99 +144,18 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
                 styles.addBtn,
                 contacts.length >= 5 && styles.addBtnDisabled,
               ]}
-              onPress={() => {
-                if (contacts.length >= 5) {
-                  Alert.alert('Límite alcanzado', 'Ya tienes el máximo de 5 contactos SOS.');
-                  return;
-                }
-                haptics.light();
-                setIsFormVisible(!isFormVisible);
-              }}
+              onPress={handleAddContact}
               activeOpacity={0.8}
               disabled={contacts.length >= 5}
+              accessibilityRole="button"
+              accessibilityLabel="Agregar nuevo contacto SOS"
             >
               <Text style={styles.addBtnIcon}>+</Text>
               <Text style={styles.addBtnText}>Agregar</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Formulario Desplegable para Agregar Contacto */}
-          {isFormVisible && (
-            <View style={styles.formContainer}>
-              <Text style={styles.formTitle}>Nuevo Contacto de Emergencia</Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Nombre completo (Ej: Mamá / Dra. Salas)"
-                placeholderTextColor="#7A6E5C"
-                value={newName}
-                onChangeText={setNewName}
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder="Número de teléfono (Ej: 8888-8888)"
-                placeholderTextColor="#7A6E5C"
-                keyboardType="phone-pad"
-                value={newPhone}
-                onChangeText={setNewPhone}
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder="Parentesco / Rol (Ej: Familiar / Intérprete / Amigo)"
-                placeholderTextColor="#7A6E5C"
-                value={newRelation}
-                onChangeText={setNewRelation}
-              />
-
-              {/* Ajustes Clave para Personas No Oyentes */}
-              <View style={styles.switchRow}>
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Text style={styles.switchLabel}>🤟 Sabe señas LESCO o es intérprete</Text>
-                  <Text style={styles.switchSub}>Te facilitará comunicación por videollamada</Text>
-                </View>
-                <Switch
-                  value={knowsLesco}
-                  onValueChange={setKnowsLesco}
-                  trackColor={{ false: '#EAE0D0', true: Colors.secondary.border }}
-                  thumbColor={knowsLesco ? Colors.secondary.main : '#FFFFFF'}
-                />
-              </View>
-
-              <View style={styles.switchRow}>
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Text style={styles.switchLabel}>💬 Recibe alertas por SMS</Text>
-                  <Text style={styles.switchSub}>Se le enviará mensaje con tu ubicación GPS</Text>
-                </View>
-                <Switch
-                  value={receivesSms}
-                  onValueChange={setReceivesSms}
-                  trackColor={{ false: '#EAE0D0', true: Colors.primary.border }}
-                  thumbColor={receivesSms ? Colors.primary.main : '#FFFFFF'}
-                />
-              </View>
-
-              {/* Botones de Guardar / Cancelar */}
-              <View style={styles.formButtonsRow}>
-                <TouchableOpacity
-                  style={styles.saveBtn}
-                  onPress={handleSaveContact}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.saveBtnText}>Guardar contacto</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => setIsFormVisible(false)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cancelBtnText}>Cancelar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
 
           {/* Lista Dinámica de Contactos */}
           <View style={styles.contactsList}>

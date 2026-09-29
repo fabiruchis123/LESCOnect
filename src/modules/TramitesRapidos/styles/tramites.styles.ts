@@ -94,15 +94,15 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   categoryIconBox: {
-    width: 48,
-    height: 48,
+    width: 52,
+    height: 52,
     borderRadius: Radius.lg,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   categoryIconEmoji: {
-    fontSize: 24,
+    fontSize: 26,
   },
   categoryTextColumn: {
     flex: 1,
@@ -124,15 +124,19 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   categorySignBtn: {
-    padding: 8,
+    padding: 10,
     borderRadius: Radius.md,
     borderWidth: 1,
+    minWidth: 42,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   categorySignIcon: {
-    fontSize: 14,
+    fontSize: 16,
   },
   categoryArrow: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: Typography.weights.black,
   },
 
@@ -161,6 +165,7 @@ export const styles = StyleSheet.create({
   },
   rompehieloTagText: {
     fontSize: 11,
+    lineHeight: 13,
     fontWeight: Typography.weights.black,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
@@ -169,31 +174,32 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: Radius.md,
     borderWidth: 1,
     gap: 4,
+    minHeight: 36,
   },
   lescoPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: Typography.weights.bold,
   },
   rompehieloQuote: {
-    fontSize: Typography.sizes.md,
+    fontSize: 17,
     fontWeight: Typography.weights.black,
     color: '#2B241C',
-    lineHeight: 22,
+    lineHeight: 24,
     marginBottom: Spacing.md,
   },
   actionDualGrid: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
   actionShowBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: Radius.md,
+    paddingVertical: 14,
+    borderRadius: Radius.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -201,13 +207,13 @@ export const styles = StyleSheet.create({
   },
   actionShowBtnText: {
     color: '#FFFFFF',
-    fontSize: Typography.sizes.xs,
+    fontSize: 13,
     fontWeight: Typography.weights.bold,
   },
   actionSpeakBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: Radius.md,
+    paddingVertical: 14,
+    borderRadius: Radius.lg,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     flexDirection: 'row',
@@ -216,11 +222,12 @@ export const styles = StyleSheet.create({
     gap: 6,
   },
   actionSpeakBtnText: {
-    fontSize: Typography.sizes.xs,
+    fontSize: 13,
     fontWeight: Typography.weights.bold,
   },
 
   // Lista de Situaciones (Vista 2)
+  // Sin botón LESCO duplicado — solo ícono + texto + flecha
   sectionHeaderLabel: {
     fontSize: 11,
     fontWeight: Typography.weights.black,
@@ -230,18 +237,20 @@ export const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   situationsList: {
-    gap: Spacing.sm * 1.2,
+    gap: Spacing.sm * 1.4,
     marginBottom: Spacing.md,
   },
   situationCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: Radius.xl,
-    padding: Spacing.md,
+    paddingVertical: Spacing.md * 1.3,
+    paddingHorizontal: Spacing.md * 1.2,
     borderWidth: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     ...Shadows.subtle,
+    minHeight: 76,
   },
   situationCardLeft: {
     flexDirection: 'row',
@@ -250,15 +259,15 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   situationIconBox: {
-    width: 46,
-    height: 46,
+    width: 52,
+    height: 52,
     borderRadius: Radius.lg,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   situationIconEmoji: {
-    fontSize: 22,
+    fontSize: 24,
   },
   situationTextColumn: {
     flex: 1,
@@ -267,45 +276,52 @@ export const styles = StyleSheet.create({
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.black,
     color: '#2B241C',
+    lineHeight: 20,
   },
   situationDesc: {
     fontSize: 11,
     color: '#7A6E5C',
     fontWeight: Typography.weights.medium,
-    marginTop: 2,
+    marginTop: 3,
+    lineHeight: 15,
   },
 
-  // Vista de Frases (Vista 3)
+  // Vista 3: Tarjeta de Frase — texto grande + pill "Ver seña" integrado arriba
   phraseCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: Radius.xl,
-    padding: Spacing.md * 1.1,
+    padding: Spacing.md * 1.3,
     borderWidth: 2,
-    marginBottom: Spacing.sm * 1.2,
+    marginBottom: Spacing.sm * 1.4,
     ...Shadows.subtle,
   },
-  watchLescoBannerBtn: {
-    width: '100%',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: Radius.md,
-    borderWidth: 1,
+  // Fila superior de la phraseCard: pill LESCO inline + nada más
+  phraseHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    justifyContent: 'flex-end',
     marginBottom: Spacing.sm,
   },
-  watchLescoBannerText: {
+  phraseLescoInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    gap: 4,
+    minHeight: 34,
+  },
+  phraseLescoInlineText: {
     fontSize: 11,
-    fontWeight: Typography.weights.black,
+    fontWeight: Typography.weights.bold,
   },
   phraseText: {
-    fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.bold,
+    fontSize: 18,
+    fontWeight: Typography.weights.black,
     color: '#2B241C',
-    lineHeight: 20,
-    marginBottom: Spacing.sm * 1.2,
+    lineHeight: 26,
+    marginBottom: Spacing.md,
   },
 
   // Escape al Traductor
@@ -329,7 +345,7 @@ export const styles = StyleSheet.create({
   },
   escapeButtonsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
   escapeBtn: {
     flex: 1,
@@ -337,22 +353,23 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#EAE0D0',
     borderRadius: Radius.lg,
-    paddingVertical: 10,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 68,
   },
   escapeBtnEmoji: {
-    fontSize: 20,
+    fontSize: 24,
     marginBottom: 4,
   },
   escapeBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: Typography.weights.bold,
     color: '#2B241C',
   },
 
   pressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.9,
+    transform: [{ scale: 0.97 }],
+    opacity: 0.88,
   },
 });

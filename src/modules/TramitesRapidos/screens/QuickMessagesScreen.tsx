@@ -161,6 +161,7 @@ export function QuickMessagesScreen() {
                         );
                       }}
                       activeOpacity={0.7}
+                      accessibilityLabel={`Ver seña LESCO de ${cat.name}`}
                     >
                       <Text style={styles.categorySignIcon}>📹</Text>
                     </TouchableOpacity>
@@ -176,6 +177,7 @@ export function QuickMessagesScreen() {
 
         {/* ======================================================= */}
         {/* VISTA 2: DETALLE DE CATEGORÍA Y TARJETA ROMPEHIELO     */}
+        {/* Mejora: sin botón LESCO duplicado en cada situación    */}
         {/* ======================================================= */}
         {selectedCategory && !selectedSituation && (
           <View>
@@ -239,7 +241,7 @@ export function QuickMessagesScreen() {
                       { color: selectedCategory.themeColor },
                     ]}
                   >
-                    Presentación en ventanilla
+                    Presentación en{'\n'}ventanilla
                   </Text>
                 </View>
 
@@ -255,8 +257,9 @@ export function QuickMessagesScreen() {
                     )
                   }
                   activeOpacity={0.75}
+                  accessibilityLabel="Ver frase de presentación en señas LESCO"
                 >
-                  <Text style={{ fontSize: 11 }}>📹</Text>
+                  <Text style={{ fontSize: 13 }}>📹</Text>
                   <Text
                     style={[
                       styles.lescoPillText,
@@ -282,8 +285,9 @@ export function QuickMessagesScreen() {
                     handleOpenVentanilla(selectedCategory.rompehielo.phrase)
                   }
                   activeOpacity={0.85}
+                  accessibilityLabel="Mostrar frase en pantalla grande para ventanilla"
                 >
-                  <Text style={{ fontSize: 13 }}>📱</Text>
+                  <Text style={{ fontSize: 15 }}>📱</Text>
                   <Text style={styles.actionShowBtnText}>Mostrar en grande</Text>
                 </TouchableOpacity>
 
@@ -294,8 +298,9 @@ export function QuickMessagesScreen() {
                   ]}
                   onPress={() => handleSpeak(selectedCategory.rompehielo.phrase)}
                   activeOpacity={0.85}
+                  accessibilityLabel="Hacer que el teléfono hable esta frase en voz alta"
                 >
-                  <Text style={{ fontSize: 13 }}>🔊</Text>
+                  <Text style={{ fontSize: 15 }}>🔊</Text>
                   <Text
                     style={[
                       styles.actionSpeakBtnText,
@@ -308,7 +313,7 @@ export function QuickMessagesScreen() {
               </View>
             </View>
 
-            {/* Lista de Situaciones Específicas */}
+            {/* Lista de Situaciones — limpia, solo ícono + título + descripción + flecha */}
             <Text style={styles.sectionHeaderLabel}>Selecciona tu trámite:</Text>
             <View style={styles.situationsList}>
               {selectedCategory.situations.map((sit) => (
@@ -320,6 +325,7 @@ export function QuickMessagesScreen() {
                   ]}
                   onPress={() => handleSelectSituation(sit)}
                   activeOpacity={0.8}
+                  accessibilityLabel={`${sit.title}: ${sit.description}`}
                 >
                   <View style={styles.situationCardLeft}>
                     <View
@@ -339,32 +345,15 @@ export function QuickMessagesScreen() {
                     </View>
                   </View>
 
-                  <View style={styles.categoryCardRight}>
-                    <TouchableOpacity
-                      style={[
-                        styles.categorySignBtn,
-                        {
-                          backgroundColor: selectedCategory.bgColor,
-                          borderColor: selectedCategory.borderColor,
-                        },
-                      ]}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleOpenLescoVideo(sit.title, sit.phrases[0]?.gloss || 'LESCO');
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.categorySignIcon}>📹</Text>
-                    </TouchableOpacity>
-                    <Text
-                      style={[
-                        styles.categoryArrow,
-                        { color: selectedCategory.themeColor },
-                      ]}
-                    >
-                      →
-                    </Text>
-                  </View>
+                  {/* Solo flecha — sin botón LESCO duplicado */}
+                  <Text
+                    style={[
+                      styles.categoryArrow,
+                      { color: selectedCategory.themeColor },
+                    ]}
+                  >
+                    →
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -373,6 +362,7 @@ export function QuickMessagesScreen() {
 
         {/* ======================================================= */}
         {/* VISTA 3: DETALLE DE SITUACIÓN Y LISTA DE FRASES        */}
+        {/* Mejora: texto de frase grande + pill seña inline       */}
         {/* ======================================================= */}
         {selectedCategory && selectedSituation && (
           <View>
@@ -422,7 +412,7 @@ export function QuickMessagesScreen() {
               {selectedSituation.description}
             </Text>
 
-            {/* Lista de Frases de la Situación */}
+            {/* Lista de Frases — phrase grande legible + pill LESCO inline arriba */}
             {selectedSituation.phrases.map((phraseItem, idx) => (
               <View
                 key={idx}
@@ -431,32 +421,38 @@ export function QuickMessagesScreen() {
                   { borderColor: selectedCategory.borderColor },
                 ]}
               >
-                <TouchableOpacity
-                  style={[
-                    styles.watchLescoBannerBtn,
-                    {
-                      backgroundColor: selectedCategory.bgColor,
-                      borderColor: selectedCategory.borderColor,
-                    },
-                  ]}
-                  onPress={() =>
-                    handleOpenLescoVideo(phraseItem.phrase, phraseItem.gloss)
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Text style={{ fontSize: 12 }}>📹</Text>
-                  <Text
+                {/* Pill LESCO integrado en esquina superior derecha */}
+                <View style={styles.phraseHeaderRow}>
+                  <TouchableOpacity
                     style={[
-                      styles.watchLescoBannerText,
-                      { color: selectedCategory.themeColor },
+                      styles.phraseLescoInline,
+                      {
+                        backgroundColor: selectedCategory.bgColor,
+                        borderColor: selectedCategory.borderColor,
+                      },
                     ]}
+                    onPress={() =>
+                      handleOpenLescoVideo(phraseItem.phrase, phraseItem.gloss)
+                    }
+                    activeOpacity={0.8}
+                    accessibilityLabel={`Ver cómo decir esta frase en señas LESCO`}
                   >
-                    Ver cómo se dice en señas LESCO primero
-                  </Text>
-                </TouchableOpacity>
+                    <Text style={{ fontSize: 13 }}>📹</Text>
+                    <Text
+                      style={[
+                        styles.phraseLescoInlineText,
+                        { color: selectedCategory.themeColor },
+                      ]}
+                    >
+                      Ver seña
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
+                {/* Frase en texto grande y legible */}
                 <Text style={styles.phraseText}>"{phraseItem.phrase}"</Text>
 
+                {/* Botones de acción */}
                 <View style={styles.actionDualGrid}>
                   <TouchableOpacity
                     style={[
@@ -465,8 +461,9 @@ export function QuickMessagesScreen() {
                     ]}
                     onPress={() => handleOpenVentanilla(phraseItem.phrase)}
                     activeOpacity={0.85}
+                    accessibilityLabel="Mostrar esta frase en pantalla grande"
                   >
-                    <Text style={{ fontSize: 13 }}>📱</Text>
+                    <Text style={{ fontSize: 15 }}>📱</Text>
                     <Text style={styles.actionShowBtnText}>Mostrar en grande</Text>
                   </TouchableOpacity>
 
@@ -477,8 +474,9 @@ export function QuickMessagesScreen() {
                     ]}
                     onPress={() => handleSpeak(phraseItem.phrase)}
                     activeOpacity={0.85}
+                    accessibilityLabel="Hacer que el teléfono hable esta frase"
                   >
-                    <Text style={{ fontSize: 13 }}>🔊</Text>
+                    <Text style={{ fontSize: 15 }}>🔊</Text>
                     <Text
                       style={[
                         styles.actionSpeakBtnText,
@@ -500,6 +498,7 @@ export function QuickMessagesScreen() {
                   style={styles.escapeBtn}
                   onPress={() => handleGoToTranslator('speech_to_sign')}
                   activeOpacity={0.8}
+                  accessibilityLabel="Ir al traductor para escuchar voz y convertirla a señas"
                 >
                   <Text style={styles.escapeBtnEmoji}>🎙️</Text>
                   <Text style={styles.escapeBtnText}>Escuchar voz</Text>
@@ -509,6 +508,7 @@ export function QuickMessagesScreen() {
                   style={styles.escapeBtn}
                   onPress={() => handleGoToTranslator('sign_to_speech')}
                   activeOpacity={0.8}
+                  accessibilityLabel="Ir al traductor para responder usando señas con la cámara"
                 >
                   <Text style={styles.escapeBtnEmoji}>📷</Text>
                   <Text style={styles.escapeBtnText}>Responder en señas</Text>
