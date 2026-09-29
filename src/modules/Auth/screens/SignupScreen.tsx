@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
 import { SignupForm } from '../components/SignupForm';
 import { styles } from '../styles/auth.styles';
 import { SignupFormValues, SignupScreenProps } from '../types';

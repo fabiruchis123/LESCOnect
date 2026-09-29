@@ -6,7 +6,7 @@ import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { useSettingsStore } from '@/shared/stores/useSettingsStore';
 import { haptics } from '@/shared/utils/haptics';
 import { Radius, Shadows, Spacing } from '@/shared/theme';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
 
 import { EditProfileScreen } from './EditProfileScreen';
 import { TextSizeScreen } from './TextSizeScreen';

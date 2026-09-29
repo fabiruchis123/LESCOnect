@@ -1,0 +1,27 @@
+# Dependencies and build artifacts
+/node_modules
+/.expo
+/android
+/ios
+/.git
+/.cache
+/dist
+/out
+/coverage
+/scratch
+*.log
+*.pdf
+*.zip
+*.bin
+*.dll
+*.bak
+
+# Ensure critical modules and assets are included
+!modules/
+!modules/**
+!plugins/
+!plugins/**
+!src/modules/Traductor/assets/
+!src/modules/Traductor/assets/**
+!assets/
+!assets/**

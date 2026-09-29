@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -14,9 +14,10 @@ function NavigationLayout() {
   const isLoading = useAuthStore((state) => state.isLoading);
   const segments = useSegments();
   const router = useRouter();
+  const [isSplashFinished, setIsSplashFinished] = useState(false);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || !isSplashFinished) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
@@ -25,10 +26,15 @@ function NavigationLayout() {
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, isLoading, segments, router]);
+  }, [isAuthenticated, isLoading, isSplashFinished, segments, router]);
 
-  if (isLoading) {
-    return <AppLoadingSplash />;
+  if (isLoading || !isSplashFinished) {
+    return (
+      <AppLoadingSplash
+        targetDuration={1800}
+        onFinish={() => setIsSplashFinished(true)}
+      />
+    );
   }
 
   return (

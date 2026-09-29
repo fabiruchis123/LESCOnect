@@ -14,10 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { CameraView, CameraType, useCameraPermissions } from '../components/CameraWrapper';
+import { detectHandNative, isNativeHandDetectorAvailable, getNativeHandDetectorLastError } from '../../../../modules/lesco-hand-detector';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { speechService } from '@/shared/utils/speech';
-import { recognizeLescoSignFromBase64, recognizeDynamicLescoSign } from '../services/translatorService';
+// Motor Gemini eliminado — se usa exclusivamente el clasificador local KNN (offline, sin tokens)
+
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -418,6 +420,23 @@ interface TrajectoryPoint {
   time: number;
 }
 
+function jointAngleDeg(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  c: { x: number; y: number }
+): number {
+  const v1x = a.x - b.x;
+  const v1y = a.y - b.y;
+  const v2x = c.x - b.x;
+  const v2y = c.y - b.y;
+  const dot = v1x * v2x + v1y * v2y;
+  const mag1 = Math.hypot(v1x, v1y);
+  const mag2 = Math.hypot(v2x, v2y);
+  if (mag1 < 1e-4 || mag2 < 1e-4) return 180;
+  const cosTheta = Math.max(-1, Math.min(1, dot / (mag1 * mag2)));
+  return (Math.acos(cosTheta) * 180) / Math.PI;
+}
+
 export function classifyLescoMotor3(
   landmarks: Array<{ x: number; y: number; z?: number }>,
   history: TrajectoryPoint[] = [],
@@ -425,38 +444,63 @@ export function classifyLescoMotor3(
 ): { letter: string; confidence: number; isDynamic?: boolean } | null {
   if (!landmarks || landmarks.length < 21) return null;
 
-  // ── Escala de la mano ──────────────────────────────────────────────
-  const rawDist = (i: number, j: number) => {
-    const dx = landmarks[i].x - landmarks[j].x;
-    const dy = landmarks[i].y - landmarks[j].y;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
+  // ── SECRETO #2: ROTACIÓN CANÓNICA ──────────────────────────────────
+  // Alinea matemáticamente la mano para que siempre apunte verticalmente a las 12:00
+  // independientemente de cómo el usuario incline la muñeca.
+  const wrist = landmarks[0];
+  const midMcp = landmarks[9];
+  const vx = midMcp.x - wrist.x;
+  const vy = midMcp.y - wrist.y;
+  const palmScale = Math.hypot(vx, vy);
+  if (palmScale < 0.03) return null;
 
-  const handScale = rawDist(0, 9);
-  if (handScale < 0.03) return null;
+  // Ángulo de inclinación de la palma y rotación al eje vertical
+  const palmAngle = Math.atan2(vy, vx);
+  const rot = -Math.PI / 2 - palmAngle;
+  const cosR = Math.cos(rot);
+  const sinR = Math.sin(rot);
 
-  const dist = (i: number, j: number) => rawDist(i, j) / handScale;
+  // Transformar los 21 puntos al espacio canónico centrado en la muñeca (0,0)
+  const c = landmarks.map((lm) => {
+    const dx = lm.x - wrist.x;
+    const dy = lm.y - wrist.y;
+    return {
+      x: (dx * cosR - dy * sinR) / palmScale,
+      y: (dx * sinR + dy * cosR) / palmScale,
+    };
+  });
 
-  // ── Estado de cada dedo ────────────────────────────────────────────
-  const isIndexExt    = dist(8, 0)  > dist(6, 0)  * 1.08 && landmarks[8].y  < landmarks[6].y;
-  const isIndexCurled = dist(8, 0)  < dist(6, 0)  * 1.05 || landmarks[8].y  >= landmarks[6].y;
-  const isMiddleExt   = dist(12, 0) > dist(10, 0) * 1.08 && landmarks[12].y < landmarks[10].y;
-  const isMiddleCurled= dist(12, 0) < dist(10, 0) * 1.05 || landmarks[12].y >= landmarks[10].y;
-  const isRingExt     = dist(16, 0) > dist(14, 0) * 1.08 && landmarks[16].y < landmarks[14].y;
-  const isRingCurled  = dist(16, 0) < dist(14, 0) * 1.05 || landmarks[16].y >= landmarks[14].y;
-  const isPinkyExt    = dist(20, 0) > dist(18, 0) * 1.08 && landmarks[20].y < landmarks[18].y;
-  const isPinkyCurled = dist(20, 0) < dist(18, 0) * 1.05 || landmarks[20].y >= landmarks[18].y;
+  const cDist = (i: number, j: number) => Math.hypot(c[i].x - c[j].x, c[i].y - c[j].y);
 
-  const isThumbOpenLateral     = dist(4, 5) > 0.46;
-  const isThumbUprightAlongIndex = dist(4, 5) < 0.52 && landmarks[4].y < landmarks[5].y;
-  const isThumbTuckedPalm      = dist(4, 9) < 0.46 || dist(4, 13) < 0.48;
+  // ── SECRETO #3: ÁNGULOS ARTICULARES BIOMECÁNICOS ───────────────────
+  // Medición de flexión en grados (180° = dedo recto estirado; < 110° = dedo doblado)
+  const angleIndexPIP  = jointAngleDeg(c[5], c[6], c[7]);
+  const angleMiddlePIP = jointAngleDeg(c[9], c[10], c[11]);
+  const angleRingPIP   = jointAngleDeg(c[13], c[14], c[15]);
+  const anglePinkyPIP  = jointAngleDeg(c[17], c[18], c[19]);
 
-  const dThumbIndex  = dist(4, 8);
-  const dThumbMiddle = dist(4, 12);
-  const dIndexMiddle = dist(8, 12);
+  // En espacio canónico: Y negativo es hacia arriba.
+  const isIndexExt    = angleIndexPIP > 130 && c[8].y < c[6].y && c[8].y < -0.8;
+  const isIndexCurled = !isIndexExt;
 
-  // ── Detección de trayectoria ───────────────────────────────────────
-  // Necesitamos suficiente historial y tiempo para señas dinámicas
+  const isMiddleExt   = angleMiddlePIP > 130 && c[12].y < c[10].y && c[12].y < -0.8;
+  const isMiddleCurled= !isMiddleExt;
+
+  const isRingExt     = angleRingPIP > 130 && c[16].y < c[14].y && c[16].y < -0.8;
+  const isRingCurled  = !isRingExt;
+
+  const isPinkyExt    = anglePinkyPIP > 125 && c[20].y < c[18].y && c[20].y < -0.7;
+  const isPinkyCurled = !isPinkyExt;
+
+  // Pulgar
+  const isThumbOpenLateral = cDist(4, 5) > 0.45;
+  const isThumbTuckedPalm  = cDist(4, 9) < 0.40 || cDist(4, 13) < 0.42;
+
+  const dThumbIndex  = cDist(4, 8);
+  const dThumbMiddle = cDist(4, 12);
+  const dIndexMiddle = cDist(8, 12);
+
+  // ── DETECCIÓN DE TRAYECTORIA (SEÑAS DINÁMICAS) ─────────────────────
   const hasTraj = history.length >= 5;
 
   if (hasTraj) {
@@ -464,163 +508,175 @@ export function classifyLescoMotor3(
     const n   = pts.length;
     const start = pts[0];
     const end   = pts[n - 1];
-    const mid   = pts[Math.floor(n / 2)];
 
     const deltaX   = end.x - start.x;
     const deltaY   = end.y - start.y;
     const totalDist= Math.hypot(deltaX, deltaY);
 
-    // Velocidad (distancia / tiempo)
     const dt = (pts[n - 1].time - pts[0].time) || 1;
-    const speed = totalDist / (dt / 1000); // unidades/segundo
+    const speed = totalDist / (dt / 1000);
 
-    // Cuánto ocupa el movimiento en X vs Y
     const horizRatio = Math.abs(deltaX) / (totalDist + 0.001);
     const vertRatio  = Math.abs(deltaY) / (totalDist + 0.001);
 
-    // Detección de zigzag (para Z, Ñ): cambios de dirección en X
-    let dirChangesX = 0;
-    for (let i = 2; i < n; i++) {
-      const prevDx = pts[i - 1].x - pts[i - 2].x;
-      const currDx = pts[i].x - pts[i - 1].x;
-      if (prevDx * currDx < 0 && Math.abs(currDx) > 0.005) dirChangesX++;
-    }
+    // FILTRO DE QUIETUD: Solo evaluar si hay movimiento claro y deliberado
+    const isIntentionalMovement = totalDist > 0.12 && speed > 0.08;
 
-    // Detección de círculo (para POR FAVOR): curvatura sostenida
-    const dx1 = mid.x - start.x;
-    const dy1 = mid.y - start.y;
-    const dx2 = end.x - mid.x;
-    const dy2 = end.y - mid.y;
-    const cross = dx1 * dy2 - dy1 * dx2; // positivo = giro sentido horario
-    const isCircular = Math.abs(cross) > 0.002 && totalDist < 0.08 && n >= 8;
+    if (isIntentionalMovement) {
+      let dirChangesX = 0;
+      for (let i = 2; i < n; i++) {
+        const prevDx = pts[i - 1].x - pts[i - 2].x;
+        const currDx = pts[i].x - pts[i - 1].x;
+        if (prevDx * currDx < 0 && Math.abs(currDx) > 0.008) dirChangesX++;
+      }
 
-    // ── SEÑAS DINÁMICAS — en orden de especificidad ──────────────────
+      // GRACIAS: mano abierta moviéndose hacia abajo/frente desde mentón
+      if (isIndexExt && isMiddleExt && isRingExt && deltaY > 0.08) {
+        return { letter: 'GRACIAS', confidence: 97, isDynamic: true };
+      }
 
-    // GRACIAS: mano abierta (≥3 dedos) moviéndose hacia abajo/frente desde mentón
-    // La cámara captura el movimiento hacia el observador como desplazamiento hacia abajo en Y
-    if (isIndexExt && isMiddleExt && isRingExt && speed > 0.04 && deltaY > 0.05) {
-      return { letter: 'GRACIAS', confidence: 97, isDynamic: true };
-    }
+      // HOLA: palma abierta con movimiento lateral notable
+      if (isIndexExt && isMiddleExt && isRingExt && isPinkyExt && horizRatio > 0.5) {
+        return { letter: 'HOLA', confidence: 97, isDynamic: true };
+      }
 
-    // HOLA: palma abierta (4 dedos) con cualquier movimiento lateral notable
-    if (isIndexExt && isMiddleExt && isRingExt && isPinkyExt && totalDist > 0.07 && horizRatio > 0.4) {
-      return { letter: 'HOLA', confidence: 97, isDynamic: true };
-    }
+      // SÍ: puño con movimiento vertical marcado
+      if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled && vertRatio > 0.7) {
+        return { letter: 'SÍ', confidence: 96, isDynamic: true };
+      }
 
-    // SÍ: puño cerrado con movimiento vertical (arriba-abajo)
-    if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled
-        && speed > 0.05 && vertRatio > 0.6 && totalDist > 0.06) {
-      return { letter: 'SÍ', confidence: 96, isDynamic: true };
-    }
+      // NO: pinza con movimiento horizontal
+      if (!isIndexExt && !isMiddleExt && dThumbIndex < 0.35 && horizRatio > 0.6) {
+        return { letter: 'NO', confidence: 95, isDynamic: true };
+      }
 
-    // NO: pinza (índice + medio contra pulgar) con movimiento horizontal repetido
-    if (!isIndexExt && !isMiddleExt && dThumbIndex < 0.35
-        && speed > 0.04 && horizRatio > 0.6 && totalDist > 0.05) {
-      return { letter: 'NO', confidence: 95, isDynamic: true };
-    }
+      // Z: solo índice extendido + zigzag en X
+      if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled && dirChangesX >= 2) {
+        return { letter: 'Z', confidence: 97, isDynamic: true };
+      }
 
-    // Z: solo índice extendido + zigzag en X (≥2 cambios de dirección)
-    if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled
-        && dirChangesX >= 2 && totalDist > 0.07) {
-      return { letter: 'Z', confidence: 97, isDynamic: true };
-    }
+      // J: solo meñique extendido + curva hacia abajo
+      if (isPinkyExt && isIndexCurled && isMiddleCurled && isRingCurled && deltaY > 0.06) {
+        return { letter: 'J', confidence: 95, isDynamic: true };
+      }
 
-    // J: solo meñique extendido + movimiento curvo hacia abajo
-    if (isPinkyExt && isIndexCurled && isMiddleCurled && isRingCurled
-        && totalDist > 0.07 && deltaY > 0.04) {
-      return { letter: 'J', confidence: 95, isDynamic: true };
-    }
+      // LL: L moviéndose horizontalmente
+      if (isIndexExt && isThumbOpenLateral && isMiddleCurled && horizRatio > 0.6) {
+        return { letter: 'LL', confidence: 97, isDynamic: true };
+      }
 
-    // LL: L (índice + pulgar) moviéndose horizontalmente
-    if (isIndexExt && isThumbOpenLateral && isMiddleCurled
-        && horizRatio > 0.55 && totalDist > 0.07) {
-      return { letter: 'LL', confidence: 97, isDynamic: true };
-    }
+      // RR: R moviéndose lateralmente
+      if (isIndexExt && isMiddleExt && dIndexMiddle < 0.22 && horizRatio > 0.5) {
+        return { letter: 'RR', confidence: 96, isDynamic: true };
+      }
 
-    // RR: R (índice+medio juntos cruzados) moviéndose lateralmente
-    if (isIndexExt && isMiddleExt && dIndexMiddle < 0.22
-        && horizRatio > 0.5 && totalDist > 0.07) {
-      return { letter: 'RR', confidence: 96, isDynamic: true };
-    }
+      // Ñ: Configuración N (índice y medio doblados hacia abajo) con movimiento lateral
+      const isNFormation = isIndexCurled && isMiddleCurled && !isRingExt && !isPinkyExt && c[8].y > c[5].y;
+      if (isNFormation && dirChangesX >= 1 && horizRatio > 0.5) {
+        return { letter: 'Ñ', confidence: 96, isDynamic: true };
+      }
 
-    // Ñ: puño cerrado con 1-2 sacudidas horizontales (zigzag suave)
-    if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled
-        && dirChangesX >= 1 && horizRatio > 0.5 && totalDist > 0.05) {
-      return { letter: 'Ñ', confidence: 95, isDynamic: true };
-    }
-
-    // POR FAVOR: movimiento circular con palma plana
-    if (isCircular && isIndexExt && isMiddleExt && isRingExt && isPinkyExt) {
-      return { letter: 'POR FAVOR', confidence: 94, isDynamic: true };
-    }
-
-    // DOS MANOS detectadas simultáneamente → GRACIAS como señal de doble mano
-    if (numHands >= 2) {
-      return { letter: 'GRACIAS', confidence: 99, isDynamic: true };
+      if (numHands >= 2) {
+        return { letter: 'GRACIAS', confidence: 99, isDynamic: true };
+      }
     }
   }
 
-  // ── SEÑAS ESTÁTICAS ────────────────────────────────────────────────
-  // Orden: de más específica a menos específica
-
+  // ── SEÑAS ESTÁTICAS (CANÓNICAS Y ROBUSTAS) ─────────────────────────
+  // L: Solo índice estirado vertical + pulgar abierto a 90° lateral
   if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled && isThumbOpenLateral) {
     return { letter: 'L', confidence: 99 };
   }
+
+  // I: Solo meñique estirado hacia arriba
   if (!isIndexExt && isMiddleCurled && isRingCurled && isPinkyExt && !isThumbOpenLateral) {
     return { letter: 'I', confidence: 98 };
   }
+
+  // Y: Meñique y pulgar estirados ('hang loose')
   if (isPinkyExt && isThumbOpenLateral && isIndexCurled && isMiddleCurled && isRingCurled) {
     return { letter: 'Y', confidence: 99 };
   }
-  if (isIndexExt && isMiddleExt && isRingCurled && isPinkyCurled && dIndexMiddle > 0.32) {
+
+  // V: Índice y medio estirados y separados
+  if (isIndexExt && isMiddleExt && isRingCurled && isPinkyCurled && dIndexMiddle > 0.30) {
     return { letter: 'V', confidence: 99 };
   }
-  if (isIndexExt && isMiddleExt && isRingCurled && isPinkyCurled && dIndexMiddle <= 0.32) {
+
+  // U: Índice y medio estirados juntos (sin separar)
+  if (isIndexExt && isMiddleExt && isRingCurled && isPinkyCurled && dIndexMiddle <= 0.30) {
     return { letter: 'U', confidence: 97 };
   }
+
+  // W: Índice, medio y anular estirados
   if (isIndexExt && isMiddleExt && isRingExt && isPinkyCurled) {
     return { letter: 'W', confidence: 98 };
   }
-  if (dThumbIndex < 0.30 && isMiddleExt && isRingExt && isPinkyExt) {
+
+  // F: Círculo con pulgar e índice, los otros 3 dedos estirados
+  if (dThumbIndex < 0.32 && isMiddleExt && isRingExt && isPinkyExt) {
     return { letter: 'F', confidence: 98 };
   }
+
+  // B: 4 dedos estirados juntos hacia arriba, pulgar doblado
   if (isIndexExt && isMiddleExt && isRingExt && isPinkyExt && !isThumbOpenLateral) {
     return { letter: 'B', confidence: 99 };
   }
-  if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled && dThumbMiddle < 0.40) {
-    return { letter: 'D', confidence: 96 };
+
+  // D: Solo índice estirado vertical, otros dedos tocando el pulgar
+  if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled && dThumbMiddle < 0.45) {
+    return { letter: 'D', confidence: 97 };
   }
-  if (isIndexCurled && isMiddleCurled && dThumbIndex < 0.30 && dThumbMiddle < 0.32) {
+
+  // O: Todos los dedos curvados tocando la punta del pulgar
+  if (isIndexCurled && isMiddleCurled && dThumbIndex < 0.32 && dThumbMiddle < 0.34) {
     return { letter: 'O', confidence: 98 };
   }
-  if (!isIndexExt && !isMiddleExt && dThumbIndex >= 0.32 && dThumbIndex <= 0.90) {
+
+  // C: Mano curvada en silueta de C
+  if (!isIndexExt && !isMiddleExt && dThumbIndex >= 0.32 && dThumbIndex <= 0.85 && !isPinkyExt) {
     return { letter: 'C', confidence: 96 };
   }
-  if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled && isThumbUprightAlongIndex) {
-    return { letter: 'A', confidence: 97 };
+
+  // ── PUÑOS CERRADOS: A, S, E ────────────────────────────────────────
+  if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled) {
+    // S: pulgar cruzado por delante de los dedos en la palma
+    if (isThumbTuckedPalm) {
+      return { letter: 'S', confidence: 97 };
+    }
+    // E: puntas de los 4 dedos descansan sobre el pulgar doblado debajo
+    if (dThumbIndex < 0.26 && dThumbMiddle < 0.28) {
+      return { letter: 'E', confidence: 95 };
+    }
+    // A: puño cerrado con el pulgar erguido o al lateral
+    return { letter: 'A', confidence: 98 };
   }
-  if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled && dThumbIndex < 0.35) {
-    return { letter: 'E', confidence: 95 };
-  }
-  if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled && isThumbTuckedPalm) {
-    return { letter: 'S', confidence: 96 };
-  }
-  if (isIndexExt && isMiddleExt && dIndexMiddle < 0.22 && !isRingExt) {
+
+  // R: Índice y medio cruzados
+  if (isIndexExt && isMiddleExt && dIndexMiddle < 0.20 && !isRingExt) {
     return { letter: 'R', confidence: 96 };
   }
+
+  // K: Índice y medio arriba con pulgar entre ellos
   if (isIndexExt && isMiddleExt && dThumbMiddle < 0.38) {
     return { letter: 'K', confidence: 95 };
   }
+
+  // X: Índice en gancho
   if (!isIndexExt && !isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled) {
     return { letter: 'X', confidence: 94 };
   }
-  if (isIndexCurled && isMiddleCurled && landmarks[8].y > landmarks[5].y) {
-    if (isRingCurled && landmarks[16].y > landmarks[13].y) return { letter: 'M', confidence: 94 };
+
+  // N / M: Dedos doblados hacia abajo sobre el pulgar
+  if (isIndexCurled && isMiddleCurled && c[8].y > c[5].y) {
+    if (isRingCurled && c[16].y > c[13].y) return { letter: 'M', confidence: 94 };
     return { letter: 'N', confidence: 94 };
   }
 
   return null;
 }
+
+
 
 // Plantillas de visualización
 export function getLescoLandmarkTemplate(sign: string): Array<{ x: number; y: number }> {
@@ -743,11 +799,13 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   const router = useRouter();
 
   const cameraRef = useRef<any>(null);
+  const engineMode = 'local' as const; // Motor local KNN exclusivo — Gemini eliminado
   const [facing, setFacing] = useState<CameraType>('front');
   const [permission, requestPermission] = useCameraPermissions();
 
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const isProcessingRef = useRef<boolean>(false);
+  const isProcessingLocalRef = useRef<boolean>(false);
   const lastAddedSignRef = useRef<string>('');
   const noHandCounterRef = useRef<number>(0);
 
@@ -756,7 +814,7 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   const [activeTab, setActiveTab] = useState<'detector' | 'dictionary'>('detector');
   const [dictFilter, setDictFilter] = useState<'todos' | 'alfabeto' | 'palabra'>('todos');
   const [isCameraActive, setIsCameraActive] = useState<boolean>(true);
-  const [cameraStatus, setCameraStatus] = useState<string>('⚡ Traductor LESCO Activo — Haz tu seña');
+  const [cameraStatus, setCameraStatus] = useState<string>('⚡ Traductor LESCO (Local) Activo — Haz tu seña');
   const [detectedSign, setDetectedSign] = useState<string>('—');
   const [confidence, setConfidence] = useState<number>(0);
   const [isHandPresent, setIsHandPresent] = useState<boolean>(false);
@@ -782,89 +840,153 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   const frameBufferRef = useRef<string[]>([]);
   // Cuántas fotos seguidas no se detectó seña → trigger burst dinámico
   const noSignCountRef = useRef<number>(0);
+  const localFrameCountRef = useRef<number>(0);
 
+  // ── Motor Gemini (cloud) eliminado. Todo el reconocimiento va por el loop local KNN abajo. ──
+
+
+  // ── LOOP NATIVO LESCO (100% Offline con MediaPipe SDK en Kotlin) ──────────
   useEffect(() => {
-    if (Platform.OS === 'web' || !isCameraActive || !permission?.granted) return;
+    if (Platform.OS === 'web' || !isCameraActive || !permission?.granted || engineMode !== 'local') return;
+
+    if (!isNativeHandDetectorAvailable()) {
+      const initErr = getNativeHandDetectorLastError();
+      setCameraStatus(
+        initErr
+          ? `⚠️ Error MediaPipe: ${initErr}`
+          : '⚠️ Módulo nativo MediaPipe no detectado en este binario'
+      );
+      return;
+    }
+
+    setCameraStatus('⚡ Local: Buscando mano...');
 
     let isMounted = true;
+    let loopId: ReturnType<typeof setTimeout>;
 
-    // ── LOOP ESTÁTICO (cadencia optimizada a 1.8s para máxima precisión y cuota estable) ──
-    const staticLoop = async () => {
-      await new Promise((r) => setTimeout(r, 600));
+    const runNativeLocalLoop = async () => {
+      if (!isMounted) return;
+      if (isProcessingLocalRef.current) {
+        if (isMounted) loopId = setTimeout(runNativeLocalLoop, 150);
+        return;
+      }
 
-      while (isMounted) {
-        if (!isProcessingRef.current && cameraRef.current && isCameraActive) {
-          try {
-            isProcessingRef.current = true;
-            setIsScanning(true);
+      try {
+        if (cameraRef.current && isCameraActive && engineMode === 'local') {
+          isProcessingLocalRef.current = true;
+          const photo = await cameraRef.current.takePictureAsync({
+            base64: true,
+            quality: 0.35,
+            shutterSound: false,
+            skipProcessing: false,
+          });
 
-            const photo = await cameraRef.current.takePictureAsync({
-              base64: true,
-              quality: 0.45,
-              shutterSound: false,
-              skipProcessing: true,
-            });
+          if (photo?.base64 && isMounted) {
+            const result = await detectHandNative(photo.base64, facing);
 
-            if (photo?.base64 && isMounted) {
-              setCameraStatus('🔍 Analizando postura LESCO...');
+            if (result.error) {
+              setCameraStatus(`⚠️ ${result.error}`);
+            } else if (result.detected && result.landmarks && result.landmarks.length >= 21 && isMounted) {
+              noHandCounterRef.current = 0;
+              setIsHandPresent(true);
 
-              const result = await recognizeLescoSignFromBase64(photo.base64);
+              const rawLandmarks = result.landmarks.map((lm) => ({ x: lm.x, y: lm.y }));
+              setRealLandmarks(rawLandmarks);
 
-              if (result.detected && result.letter && isMounted) {
-                noHandCounterRef.current = 0;
-                setIsHandPresent(true);
-                setDetectedSign(result.letter);
-                setConfidence(result.confidence || 95);
-                setRealLandmarks(getLescoLandmarkTemplate(result.letter));
+              const wrist = rawLandmarks[0];
+              const now = Date.now();
+              trajectoryBufferRef.current.push({ x: wrist.x, y: wrist.y, time: now });
+              if (trajectoryBufferRef.current.length > 12) trajectoryBufferRef.current.shift();
 
-                const now = Date.now();
-                if ((now - lastAddedTimeRef.current) >= 1800) {
-                  haptics.success();
-                  if (autoAddEnabled) {
-                    setWordBuffer((prev) => {
-                      const needsSpace = prev.length > 0 && !prev.endsWith(' ') && result.letter.length > 1;
-                      return needsSpace ? prev + ' ' + result.letter : prev + result.letter;
-                    });
-                    setCameraStatus(`✅ ¡Letra '${result.letter}' escrita! (${result.confidence}%)`);
-                  } else {
-                    setCameraStatus(`✅ Detectada '${result.letter}' (${result.confidence}%)`);
+              const classification = classifyLescoMotor3(
+                rawLandmarks,
+                trajectoryBufferRef.current,
+                result.handsCount ?? 1
+              );
+
+
+              if (classification && classification.letter && classification.letter !== '?') {
+                voteBufferRef.current.push(classification.letter);
+                if (voteBufferRef.current.length > 5) voteBufferRef.current.shift();
+
+                // Conteo de votos en la ventana móvil de los últimos 5 frames
+                const counts: Record<string, number> = {};
+                let maxSign = '';
+                let maxCount = 0;
+                for (const sign of voteBufferRef.current) {
+                  counts[sign] = (counts[sign] || 0) + 1;
+                  if (counts[sign] > maxCount) {
+                    maxCount = counts[sign];
+                    maxSign = sign;
                   }
-                  lastAddedTimeRef.current = now;
-                  lastAddedSignRef.current = result.letter;
-                } else {
-                  const remaining = Math.ceil((1800 - (now - lastAddedTimeRef.current)) / 1000);
-                  setCameraStatus(`👁 '${result.letter}' lista — espera ${remaining}s`);
                 }
-              } else if (isMounted) {
-                setIsHandPresent(false);
-                setDetectedSign('—');
-                setConfidence(0);
-                setRealLandmarks([]);
-                setCameraStatus('Muestra tu mano claramente frente a la cámara');
+
+                // Consenso para mostrar en pantalla: al menos 3 de los últimos 5 frames (60% de estabilidad)
+                if (maxCount >= 3) {
+                  setDetectedSign(maxSign);
+                  setConfidence(classification.confidence);
+                  setCameraStatus(`⚡ Seña confirmada: '${maxSign}' (${classification.confidence}%)`);
+
+                  // Consenso para escribir en texto: 4 de 5 frames (80% deliberado) y 1.2s de intervalo
+                  if (maxCount >= 4 && now - lastAddedTimeRef.current >= 1200) {
+                    haptics.success();
+                    if (autoAddEnabled) {
+                      setWordBuffer((prev) => {
+                        const needsSpace =
+                          prev.length > 0 && !prev.endsWith(' ') && maxSign.length > 1;
+                        return needsSpace ? prev + ' ' + maxSign : prev + maxSign;
+                      });
+                      setCameraStatus(`✅ ¡'${maxSign}' escrita! (${classification.confidence}%)`);
+                    } else {
+                      setCameraStatus(`✅ Detectada '${maxSign}' (${classification.confidence}%)`);
+                    }
+                    lastAddedTimeRef.current = now;
+                    lastAddedSignRef.current = maxSign;
+                    voteBufferRef.current = []; // Vaciar tras escribir para evitar repeticiones accidentales
+                  }
+                } else {
+                  setCameraStatus('⚡ Mantén la mano firme...');
+                }
+              } else {
+                if (voteBufferRef.current.length > 0) {
+                  voteBufferRef.current.shift();
+                }
+                setCameraStatus('⚡ Mano detectada — Ajusta la seña');
               }
-            }
-          } catch (err: any) {
-            if (isMounted) setCameraStatus(`⚠️ ${err?.message ?? 'Verificando cámara...'}`);
-          } finally {
-            if (isMounted) {
-              setIsScanning(false);
-              isProcessingRef.current = false;
+
+            } else if (isMounted) {
+              setIsHandPresent(false);
+              setDetectedSign('—');
+              setConfidence(0);
+              setRealLandmarks([]);
+              localFrameCountRef.current = (localFrameCountRef.current || 0) + 1;
+              setCameraStatus(`⚡ Local: Buscando mano... (#${localFrameCountRef.current})`);
             }
           }
         }
-        await new Promise((r) => setTimeout(r, 1800));
+      } catch (err: any) {
+        if (isMounted) {
+          setCameraStatus(`⚠️ Error Local: ${err?.message ?? 'captura'}`);
+        }
+      } finally {
+        isProcessingLocalRef.current = false;
+      }
+
+      if (isMounted && engineMode === 'local') {
+        loopId = setTimeout(runNativeLocalLoop, 300);
       }
     };
 
-    staticLoop();
+    loopId = setTimeout(runNativeLocalLoop, 400);
 
     return () => {
       isMounted = false;
-      isProcessingRef.current = false;
+      isProcessingLocalRef.current = false;
+      clearTimeout(loopId);
     };
-  }, [isCameraActive, permission?.granted, autoAddEnabled]);
+  }, [isCameraActive, permission?.granted, autoAddEnabled, engineMode, facing]);
 
-  // Cargar MediaPipe Hands en Web Browser
+
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
@@ -1268,15 +1390,22 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                 )
               ) : null}
 
-              {/* Botón Girar Cámara Flotante Sutil */}
+              {/* Botones de Control Flotantes en Cámara */}
               {Platform.OS !== 'web' && permission?.granted && isCameraActive ? (
-                <TouchableOpacity
-                  style={styles.flipCamBtn}
-                  onPress={toggleCameraFacing}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.flipCamBtnText}>🔄 {facing === 'front' ? 'Trasera' : 'Frontal'}</Text>
-                </TouchableOpacity>
+                <View style={styles.camTopActions}>
+                  {/* Badge ⚡ Local — motor KNN offline siempre activo */}
+                  <View style={[styles.engineToggleBtn, styles.engineToggleBtnLocal]}>
+                    <Text style={styles.engineToggleBtnText}>⚡ Local</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.flipCamBtn}
+                    onPress={toggleCameraFacing}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.flipCamBtnText}>🔄 {facing === 'front' ? 'Trasera' : 'Frontal'}</Text>
+                  </TouchableOpacity>
+                </View>
               ) : null}
 
               {/* Indicador de Estado Visual y Discreto */}
@@ -1744,17 +1873,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
-  flipCamBtn: {
+  camTopActions: {
     position: 'absolute',
     top: 10,
     right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 30,
+  },
+  engineToggleBtn: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+  },
+  engineToggleBtnLocal: {
+    backgroundColor: 'rgba(46, 204, 113, 0.90)',
+    borderColor: '#2ECC71',
+  },
+  engineToggleBtnCloud: {
+    backgroundColor: 'rgba(52, 152, 219, 0.90)',
+    borderColor: '#3498DB',
+  },
+  engineToggleBtnText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  flipCamBtn: {
     backgroundColor: 'rgba(20, 15, 10, 0.75)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Radius.pill,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.25)',
-    zIndex: 30,
   },
   flipCamBtnText: {
     color: '#FFFFFF',

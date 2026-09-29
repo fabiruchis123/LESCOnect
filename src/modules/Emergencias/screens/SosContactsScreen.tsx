@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { formatCRPhone } from '@/modules/Auth/components/ContactPickerModal';
 import { SosContact, SosContactsScreenProps } from '../types/emergencias.types';

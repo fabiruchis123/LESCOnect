@@ -19,6 +19,7 @@
       }
     },
     "android": {
+      "package": "com.lesconect.app",
       "adaptiveIcon": {
         "backgroundColor": "#FBF6EE",
         "foregroundImage": "./assets/LESCOnect-Logo-manos.png"
@@ -26,7 +27,11 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "CAMERA",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -42,7 +47,22 @@
         {
           "cameraPermission": "Permite a LESCOnect acceder a la cámara para traducir señas dactilológicas en tiempo real."
         }
-      ]
-    ]
+      ],
+      "expo-video",
+      "./plugins/withLescoHandDetector"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "792f4736-1b3a-409a-a4b1-88ee9521d29a"
+      }
+    },
+    "owner": "pleivaz",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/792f4736-1b3a-409a-a4b1-88ee9521d29a"
+    }
   }
 }

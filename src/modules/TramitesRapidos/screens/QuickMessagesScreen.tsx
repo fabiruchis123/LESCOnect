@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { haptics } from '@/shared/utils/haptics';
 import { speechService } from '@/shared/utils/speech';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
 import { VentanillaModal } from '../components/VentanillaModal';
 import { TRAMITES_CATEGORIES } from '../services/tramitesData';
 import { TramiteCategory, TramiteSituation } from '../types';

@@ -4,5 +4,5 @@ export { TranslatorHeroCard } from './components/TranslatorHeroCard';
 export { EmergencyBanner } from './components/EmergencyBanner';
 export { QuickMessagesBento } from './components/QuickMessagesBento';
 export { SecondaryActionsGrid } from './components/SecondaryActionsGrid';
-export { LescoVideoModal, type LescoVideoInfo } from './components/LescoVideoModal';
+export { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
 export * from './types';

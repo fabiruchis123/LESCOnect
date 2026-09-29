@@ -144,4 +144,6 @@ vite.config.ts.timestamp-*
 
 # Expo
 .expo/
+/android/
+/ios/
 

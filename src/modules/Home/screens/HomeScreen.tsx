@@ -9,11 +9,9 @@ import { TranslatorHeroCard } from '../components/TranslatorHeroCard';
 import { EmergencyBanner } from '../components/EmergencyBanner';
 import { QuickMessagesBento } from '../components/QuickMessagesBento';
 import { SecondaryActionsGrid } from '../components/SecondaryActionsGrid';
-import { LescoVideoModal, type LescoVideoInfo } from '../components/LescoVideoModal';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
 import { styles } from '../styles/home.styles';
 import { HomeScreenProps } from '../types';
-import { HistoryScreen } from '@/modules/Historial';
-import { HelpScreen } from '@/modules/Ayuda';
 
 export function HomeScreen({
   onNavigateToTranslator,
