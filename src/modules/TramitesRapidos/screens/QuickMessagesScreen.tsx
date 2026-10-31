@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Pressable,
   ScrollView,
   StatusBar,
   Text,
@@ -11,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { haptics } from '@/shared/utils/haptics';
 import { speechService } from '@/shared/utils/speech';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 import { VentanillaModal } from '../components/VentanillaModal';
 import { TRAMITES_CATEGORIES } from '../services/tramitesData';
 import { TramiteCategory, TramiteSituation } from '../types';
@@ -75,11 +74,11 @@ export function QuickMessagesScreen() {
     setVentanillaText(text);
   };
 
-  const handleOpenLescoVideo = (title: string, gloss: string) => {
+  const handleOpenLescoVideo = (title: string, gloss: string, categoryOverride?: string) => {
     haptics.light();
     setActiveVideo({
       title,
-      category: selectedCategory?.name || 'LESCO',
+      category: categoryOverride || selectedCategory?.name || 'LESCO',
       glossText: gloss,
     });
   };
@@ -97,7 +96,7 @@ export function QuickMessagesScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ======================================================= */}
-        {/* VISTA 1: GRID PRINCIPAL DE CATEGORÍAS TIERRA           */}
+        {/* VISTA 1: GRID PRINCIPAL DE CATEGORÍAS TIERRA            */}
         {/* ======================================================= */}
         {!selectedCategory && (
           <View>
@@ -157,7 +156,8 @@ export function QuickMessagesScreen() {
                         e.stopPropagation();
                         handleOpenLescoVideo(
                           `Mensajes Rápidos - ${cat.name}`,
-                          cat.rompehielo.gloss
+                          cat.rompehielo.gloss,
+                          cat.name
                         );
                       }}
                       activeOpacity={0.7}
@@ -176,8 +176,7 @@ export function QuickMessagesScreen() {
         )}
 
         {/* ======================================================= */}
-        {/* VISTA 2: DETALLE DE CATEGORÍA Y TARJETA ROMPEHIELO     */}
-        {/* Mejora: sin botón LESCO duplicado en cada situación    */}
+        {/* VISTA 2: DETALLE DE CATEGORÍA Y TARJETA ROMPEHIELO      */}
         {/* ======================================================= */}
         {selectedCategory && !selectedSituation && (
           <View>
@@ -313,7 +312,7 @@ export function QuickMessagesScreen() {
               </View>
             </View>
 
-            {/* Lista de Situaciones — limpia, solo ícono + título + descripción + flecha */}
+            {/* Lista de Situaciones */}
             <Text style={styles.sectionHeaderLabel}>Selecciona tu trámite:</Text>
             <View style={styles.situationsList}>
               {selectedCategory.situations.map((sit) => (
@@ -345,7 +344,6 @@ export function QuickMessagesScreen() {
                     </View>
                   </View>
 
-                  {/* Solo flecha — sin botón LESCO duplicado */}
                   <Text
                     style={[
                       styles.categoryArrow,
@@ -361,8 +359,7 @@ export function QuickMessagesScreen() {
         )}
 
         {/* ======================================================= */}
-        {/* VISTA 3: DETALLE DE SITUACIÓN Y LISTA DE FRASES        */}
-        {/* Mejora: texto de frase grande + pill seña inline       */}
+        {/* VISTA 3: DETALLE DE SITUACIÓN Y LISTA DE FRASES         */}
         {/* ======================================================= */}
         {selectedCategory && selectedSituation && (
           <View>
@@ -412,7 +409,7 @@ export function QuickMessagesScreen() {
               {selectedSituation.description}
             </Text>
 
-            {/* Lista de Frases — phrase grande legible + pill LESCO inline arriba */}
+            {/* Lista de Frases */}
             {selectedSituation.phrases.map((phraseItem, idx) => (
               <View
                 key={idx}
@@ -435,7 +432,7 @@ export function QuickMessagesScreen() {
                       handleOpenLescoVideo(phraseItem.phrase, phraseItem.gloss)
                     }
                     activeOpacity={0.8}
-                    accessibilityLabel={`Ver cómo decir esta frase en señas LESCO`}
+                    accessibilityLabel="Ver cómo decir esta frase en señas LESCO"
                   >
                     <Text style={{ fontSize: 13 }}>📹</Text>
                     <Text
@@ -527,7 +524,21 @@ export function QuickMessagesScreen() {
         onSpeak={(txt) => handleSpeak(txt)}
         onWatchLesco={(txt) => {
           setVentanillaText(null);
-          handleOpenLescoVideo(txt, 'LESCO');
+          let resolvedGloss = selectedCategory?.rompehielo.gloss || 'LESCO';
+          if (selectedCategory) {
+            if (selectedCategory.rompehielo.phrase === txt) {
+              resolvedGloss = selectedCategory.rompehielo.gloss;
+            } else {
+              for (const sit of selectedCategory.situations) {
+                const match = sit.phrases.find((ph) => ph.phrase === txt);
+                if (match) {
+                  resolvedGloss = match.gloss;
+                  break;
+                }
+              }
+            }
+          }
+          handleOpenLescoVideo(txt, resolvedGloss);
         }}
         onClose={() => setVentanillaText(null)}
       />

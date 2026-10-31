@@ -1,91 +1,76 @@
 # 🚀 Pull Request — LESCOnect
 
-**Rama origen:** `feature-actualizacion-front-ari`  
-**Rama destino:** `develop`
-
----
-
 ## 📝 Descripción
-Este Pull Request integra un conjunto exhaustivo de mejoras visuales, de accesibilidad universal (Deaf UX), persistencia de preferencias de usuario y optimizaciones ergonómicas en los módulos de **Home**, **Perfil**, **Traductor**, **Trámites Rápidos** y **Emergencias SOS**:
-
-1. **Home**: Estandarización de «Trámites Rápidos», botones de video tutorial en LESCO integrados junto a cada botón de flecha en los 5 módulos principales, separación visual adecuada entre texto e ícono de Emergencias, y fijación del ícono de inicio (`🏠`) sin estados no deseados.
-2. **Perfil & Accesibilidad**: Persistencia completa del tamaño de texto y configuración háptica mediante Zustand + MMKV con fallback seguro; previsualización interactiva en tiempo real y escalado dinámico de tipografía en la interfaz de Perfil.
-3. **Traductor LESCO**: Visualización de palabras frecuentes extendidas horizontalmente sin confinarlas en círculos restrictivos, facilitando su lectura tanto en el carrusel en vivo como en el listado de diccionario y modal anatómico.
-4. **Trámites Rápidos**: Reducción del tamaño de la tarjeta rompehielo mediante el salto de línea controlado de «Presentación en ventanilla» a 2 líneas.
-5. **Emergencias SOS**: Pantalla dedicada y navegación desacoplada para la adición y gestión fluida de contactos de emergencia.
+Este Pull Request consolida una actualización integral de estabilidad, accesibilidad visual, seguridad y funcionalidad para la preparación de la versión Alpha de **LESCOnect**:
+1. **Limpieza Visual en Videos (Swipe Up)**: Se eliminaron las sombras y viñetas oscuras que cubrían un tercio del video en la pantalla de bienvenida y tutoriales, manteniendo subtítulos accesibles limpios y flotantes sincronizados con el habla.
+2. **Splash de Inicialización Profesional**: Pantalla de carga continua de 10 segundos con barra de progreso, mensajes rotativos inclusivos y precarga en segundo plano del catálogo para modo offline.
+3. **Gestión Unificada de Permisos en Arranque**: Solicitud secuencial al iniciar la app de Ubicación Satelital GPS, Agenda de Contactos, Cámara, Almacenamiento y SMS.
+4. **Despacho Satelital SOS a Contactos (Exclusión del 9-1-1)**: Reenfoque absoluto del sistema de auxilio para transmitir coordenadas satelitales GPS en tiempo real exclusivamente a la red de contactos SOS del usuario, eliminando cualquier despacho o fallback hacia el 9-1-1 sin homologación. Botón interactivo para importar contactos directamente desde la libreta del teléfono.
+5. **Autenticación Telefónica OTP en Servidor (Zero-Cost / Open Source)**: Arquitectura Zero-Trust Client con código generado en backend/PostgreSQL, microservidor local gratuito utilizando el propio teléfono físico (WhatsApp Multi-Device / SMS) con $0 de inversión inicial, y veredicto arbitral de telecomunicaciones.
+6. **Módulos de Traducción e Inteligencia LESCO**: Motores de coherencia gramatical LESCO -> Español, entrenador de abecedario, intérprete 3D Avatar y pipeline cinemático de señas.
+7. **Organización del Repositorio**: Limpieza y archivo de markdowns históricos en la carpeta `md-olds/`.
 
 ---
 
 ## 🛠️ Tipo de Cambio
-- [x] ✨ **feat**: Persistencia de tamaño de texto y preferencias hápticas con Zustand + MMKV; pantalla dedicada para registrar contactos SOS.
-- [x] 🎨 **style / ui**: Integración de botones de tutorial LESCO (`📹`) en Home; visualización horizontal limpia de palabras frecuentes sin círculos; ajuste de espaciado y saltos de línea en rompehielos de trámites.
-- [x] ♿ **a11y / deaf-ux**: Escalado dinámico de fuentes según preferencia del usuario en Perfil; videos de apoyo en LESCO directos por módulo; mejoras en legibilidad táctil y visual.
-- [x] 🐛 **fix**: Corrección del ícono inactivo de la casa en la barra de pestañas (evitando `🏚️` por `🏠` constante); importaciones normalizadas de `LescoVideoModal` en el módulo de Traductor.
-- [x] 🏷️ **refactor**: Desacoplamiento del formulario de contacto SOS a ruta dedicada `app/add-sos-contact.tsx` y pantalla `AddSosContactScreen.tsx`.
+- [x] ✨ **feat**: Nueva funcionalidad o pantalla (Permisos en arranque, selector de agenda SOS, arquitectura OTP servidor, microgateway local)
+- [x] 🎨 **style / ui**: Cambios visuales o maquetado de alta fidelidad (Eliminación de sombras en video, splash de 10s, subtítulos flotantes)
+- [x] 🐛 **fix**: Corrección de un error o bug (Eliminación de Require Cycle entre Home y Ayuda, exclusión de 9-1-1)
+- [x] ♻️ **refactor**: Refactorización de código sin cambiar comportamiento (Limpieza de mockups en useAuthStore, arquitectura modular)
+- [x] 📚 **docs**: Cambios en la documentación (Veredicto de arbitraje de telecomunicaciones, reporte de telefonía, manual de gateway local)
+- [x] 🔧 **chore / config**: Ajuste de configuración o dependencias (app.json con permisos y plugins, tsconfig.json optimizado)
 
 ---
 
 ## 📦 Módulos Afectados
-- [x] 🏠 **Home**
-- [x] 👤 **Perfil**
 - [x] 🤟 **Traductor**
-- [x] 📋 **TramitesRapidos**
 - [x] 🚨 **Emergencias**
-- [x] 🧩 **Shared Stores / Components**
+- [x] 🏠 **Home**
+- [x] 🔐 **Auth**
+- [x] 👤 **Perfil**
+- [x] 📋 **TramitesRapidos**
+- [x] 📜 **Historial**
+- [x] ❓ **Ayuda**
+- [x] 🧩 **Shared Components / Theme**
 
 ---
 
 ## 🔍 Cambios Realizados
-
-### 1. 🏠 Módulo Home (`HomeScreen.tsx`, `home.styles.ts`, componentes)
-- **«Mensajes Rápidos» → «Trámites Rápidos»**: Actualización de textos y accesibilidad en el encabezado Bento.
-- **Botones de Video Tutorial LESCO**:
-  - `TranslatorHeroCard.tsx`: Botón `📹` junto a las flechas de **Señas a Voz** y **Voz a Señas**.
-  - `EmergencyBanner.tsx`: Botón `📹` junto al botón de flecha de **Emergencias**.
-  - `SecondaryActionsGrid.tsx`: Botones `📹` junto a las flechas de **Historial** y **Ayuda LESCO**.
-  - Enlace directo a `LescoVideoModal` con glosas explicativas oficiales para cada funcionalidad.
-- **Separación visual en Emergencias**: Creación del contenedor `emergencyTextBox` con margen izquierdo de 14px para distanciar la sirena 🚨 del texto de alerta.
-- **Barra de navegación de Pestañas (`app/(tabs)/_layout.tsx`)**: Eliminación del emoji alternativo de casa en ruinas (`🏚️`), garantizando el ícono de casa (`🏠`) en todos los estados.
-
-### 2. 👤 Módulo Perfil y Store de Ajustes (`ProfileScreen.tsx`, `TextSizeScreen.tsx`, `useSettingsStore.ts`)
-- **Persistencia con MMKV y fallback**: Store `useSettingsStore` enriquecida con `fontSizeNumber` (14, 16, 20, 24px), `fontScale` (0.875 a 1.5) y `vibrationEnabled`, almacenados en `react-native-mmkv` con adapter tolerante a fallos para Web y Expo Go.
-- **Selección y Feedback en Tiempo Real**: En `TextSizeScreen`, la selección de tamaño se persiste de inmediato, actualiza la caja de vista previa y muestra la insignia interactiva `✓ Guardado`.
-- **Escalado Dinámico**: La pantalla `ProfileScreen` recalcula tamaños de fuentes de títulos, botones y opciones aplicando `fontScale`, además de reflejar en el subtítulo el tamaño activo (ej. *«Actual: Grande (20px) • Toca para cambiar»*).
-- **Vibración háptica**: `VibrationScreen` conectado directamente a la store global.
-
-### 3. 🤟 Módulo Traductor y Abecedario (`SignsToTextScreen.tsx`, `TranslatorScreen.tsx`)
-- **Palabras Frecuentes extendidas a lo horizontal**:
-  - Eliminación del contenedor circular rígido (`gridBadgeCircle`, 34x34) para palabras compuestas como *«POR FAVOR»*, *«GRACIAS»*, *«HOLA»*, *«AYUDA»*, *«SÍ»* y *«NO»*.
-  - Despliegue en tarjetas horizontales que aprovechan el ancho completo (`wordCardHorizontal`), con tipografía legible, indicador de dificultad y enlace a postura oficial.
-  - Inclusión de carrusel horizontal de palabras frecuentes en la vista de cámara en vivo para rápida inserción en el búfer de texto.
-  - Adaptación de la insignia en el modal de detalle anatómico (`modalWordBadge`).
-
-### 4. 📋 Módulo Trámites Rápidos (`QuickMessagesScreen.tsx`, `tramites.styles.ts`)
-- **Rompehielo en 2 líneas**:
-  - La tarjeta de presentación en ventanilla ahora divide la etiqueta como:
-    ```text
-    Presentación en
-    ventanilla
-    ```
-  - `lineHeight: 13` para prevenir sobreanchos y desbordes frente al botón LESCO.
-
-### 5. 🚨 Módulo Emergencias SOS (`SosContactsScreen.tsx`, `AddSosContactScreen.tsx`, `app/add-sos-contact.tsx`)
-- Desacoplamiento del formulario desplegable a una pantalla independiente `AddSosContactScreen` con validaciones de teléfono, rol y switches accesibles (sabe LESCO / recibe SMS).
+- **Módulo Auth & Login**:
+  - Eliminado el usuario mock inicial (`INITIAL_DEFAULT_USER`); arranque limpio en estado desautenticado (`null`).
+  - Modal reactivo de verificación OTP (`SmsOtpVerificationModal.tsx`) con autocompletado y botón prominente de confirmación.
+  - Servicio `otpService.ts` adaptado a la arquitectura Zero-Trust.
+- **Módulo Emergencias**:
+  - Creado `emergencyLocationService.ts` con geolocalización GPS satelital de alta precisión (`expo-location`).
+  - Eliminadas todas las menciones y envíos a la central 9-1-1; el mensaje se envía a familiares y contactos SOS con enlace de Google Maps y coordenadas numéricas exactas.
+  - En `AddSosContactScreen.tsx`, incorporado botón "📱 Elegir de mi Agenda Telefónica" para importar contactos de la libreta con un solo toque (`appPermissionsService.pickPhoneContact()`).
+- **Módulo Home & Bienvenida**:
+  - En `WelcomeScreen.tsx`, removidas las viñetas oscuras superior e inferior y el cajón de swipe up; subtítulos flotantes limpios al pie del video.
+  - Resuelto el Require Cycle entre `HomeScreen.tsx` y `HelpScreen.tsx`.
+- **Módulo Shared & Arranque**:
+  - En `app/_layout.tsx`, configurado splash de 10 segundos y solicitud ordenada de permisos con `appPermissionsService.ts`.
+  - En `AppLoadingSplash.tsx`, barra de progreso continua y mensajes rotativos inclusivos.
+  - Servicios de soporte: `videoCacheService.ts`, `videoSubtitlesService.ts`, `security.ts`.
+- **Infraestructura & Backend**:
+  - Paquete `local-otp-gateway` con microservidor Open Source (`server.js`) para envío de OTP gratuito por WhatsApp Multi-Device (vía Baileys) o SMS (vía Capcom6).
+  - Scripts SQL en `LESCOnect-backend/supabase/` para validación de OTP en PostgreSQL.
+  - Reportes y veredictos en `LESCOnect-backend/docs/`.
+  - Carpeta `md-olds/` con los markdowns y reportes históricos archivados.
 
 ---
 
-## 📸 Evidencia Visual / Verificación
-- ✅ **Cero errores TypeScript**: Verificación limpia ejecutando `npx tsc --noEmit` con código de salida `0`.
-- ✅ **Persistencia comprobada**: El tamaño de letra se mantiene guardado al salir y volver a entrar al perfil o reiniciar la app.
-- ✅ **Diseño responsivo**: Palabras frecuentes legibles sin recortes ni círculos forzados.
-- ✅ **Accesibilidad LESCO**: Modales de tutorial configurados y disparables desde cada sección del Home.
+## 📸 Evidencia Visual / Capturas
+- Splash de 10s con barra de progreso continua al 100%.
+- Videos limpios sin viñetas oscuras en bienvenida y módulos.
+- Modal de verificación OTP con 6 casillas y botón reactivo.
+- Botón de importación desde la libreta de contactos en Agregar Contacto SOS.
+- Despacho satelital de alerta SOS con coordenadas satelitales en tiempo real.
 
 ---
 
 ## ✅ Lista de Verificación (Checklist)
-- [x] Rama origen `feature-actualizacion-front-ari` sincronizada.
-- [x] Rama destino configurada hacia `develop`.
-- [x] Se ejecutó `npx tsc --noEmit` y el proyecto compila sin errores ni advertencias de tipos.
-- [x] Se respetó la arquitectura modular de 6 carpetas y barreras de exportación `index.ts`.
-- [x] Se utilizó la paleta de colores del Design System Tierra (`#FBF6EE`, `#B5551A`, `#5C7A5C`, `#C0392B`, `#2B241C`, `#7A6E5C`).
-- [x] Compatible con Web y Expo Go (iOS/Android).
+- [x] Se ejecutó `npx tsc --noEmit` sin errores de compilación TypeScript (**0 errores**).
+- [x] Se respetó la arquitectura de módulos (6 subcarpetas por módulo y barrera pública `index.ts`).
+- [x] Se evitó el uso de importaciones profundas cruzadas entre módulos.
+- [x] Los componentes respetan la Paleta Tierra (`#FBF6EE`, `#B5551A`, `#5C7A5C`, `#C0392B`, `#2B241C`, `#7A6E5C`).
+- [x] Se verificaron los márgenes y áreas seguras para dispositivos móviles (compilación APK / Expo Go).

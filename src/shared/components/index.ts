@@ -1,4 +1,4 @@
-export * from './ScreenWrapper';
+﻿export * from './ScreenWrapper';
 export * from './AppHeader';
 export * from './AppButton';
 export * from './AppCard';
@@ -8,3 +8,5 @@ export * from './CategoryCard';
 export * from './LescoVideoModal';
 export * from './BrandLogo';
 export * from './AppLoadingSplash';
+export * from './VentanillaModal';
+

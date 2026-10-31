@@ -8,10 +8,12 @@ export const haptics = {
    */
   light: () => {
     if (!useSettingsStore.getState().vibrationEnabled) return;
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-      Vibration.vibrate(80);
-    } catch {}
+    if (Platform.OS === 'web') return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {
+      try {
+        Vibration.vibrate(40);
+      } catch {}
+    });
   },
 
   /**
@@ -19,10 +21,12 @@ export const haptics = {
    */
   medium: () => {
     if (!useSettingsStore.getState().vibrationEnabled) return;
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-      Vibration.vibrate(150);
-    } catch {}
+    if (Platform.OS === 'web') return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {
+      try {
+        Vibration.vibrate(80);
+      } catch {}
+    });
   },
 
   /**
@@ -30,10 +34,12 @@ export const haptics = {
    */
   success: () => {
     if (!useSettingsStore.getState().vibrationEnabled) return;
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      Vibration.vibrate(200);
-    } catch {}
+    if (Platform.OS === 'web') return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {
+      try {
+        Vibration.vibrate(140);
+      } catch {}
+    });
   },
 
   /**
@@ -41,10 +47,12 @@ export const haptics = {
    */
   warning: () => {
     if (!useSettingsStore.getState().vibrationEnabled) return;
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-      Vibration.vibrate(180);
-    } catch {}
+    if (Platform.OS === 'web') return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {
+      try {
+        Vibration.vibrate(140);
+      } catch {}
+    });
   },
 
   /**
@@ -52,9 +60,10 @@ export const haptics = {
    */
   emergency: () => {
     if (!useSettingsStore.getState().vibrationEnabled) return;
+    if (Platform.OS === 'web') return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-      Vibration.vibrate(500);
+      Vibration.vibrate([0, 250, 120, 250]);
     } catch {}
   },
 
@@ -62,9 +71,10 @@ export const haptics = {
    * Pulso de prueba directo para verificar el hardware del teléfono
    */
   test: () => {
+    if (Platform.OS === 'web') return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-      Vibration.vibrate(300);
+      Vibration.vibrate(220);
     } catch {}
   },
 };

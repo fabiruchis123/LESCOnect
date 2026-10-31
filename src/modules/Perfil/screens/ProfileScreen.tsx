@@ -6,7 +6,7 @@ import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { useSettingsStore } from '@/shared/stores/useSettingsStore';
 import { haptics } from '@/shared/utils/haptics';
 import { Radius, Shadows, Spacing } from '@/shared/theme';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 
 import { EditProfileScreen } from './EditProfileScreen';
 import { TextSizeScreen } from './TextSizeScreen';
@@ -39,7 +39,6 @@ export function ProfileScreen() {
     haptics.light();
     if (isAuthenticated) {
       logout();
-      router.replace('/(auth)/welcome');
     } else {
       router.push('/(auth)/signup');
     }
@@ -101,6 +100,7 @@ export function ProfileScreen() {
                 onPress={(e) => {
                   e.stopPropagation?.();
                   setActiveVideo({
+                    r2Key: 'lesco/v1/m6/6_1.mp4',
                     title: 'Editar Perfil y Contactos SOS',
                     category: 'Configuración Personal',
                     glossText: 'PERFIL DATOS PERSONALES / NOMBRE CÉDULA TELÉFONO / CONTACTO EMERGENCIA GUARDAR',
@@ -140,6 +140,7 @@ export function ProfileScreen() {
                 onPress={(e) => {
                   e.stopPropagation?.();
                   setActiveVideo({
+                    r2Key: 'lesco/v1/m6/6_3.mp4',
                     title: 'Ajustes de Tamaño de Texto',
                     category: 'Accesibilidad Visual',
                     glossText: 'LETRAS TEXTO TAMAÑO GRANDE PEQUEÑO CONFIGURAR VISUAL FÁCIL',
@@ -179,6 +180,7 @@ export function ProfileScreen() {
                 onPress={(e) => {
                   e.stopPropagation?.();
                   setActiveVideo({
+                    r2Key: 'lesco/v1/m6/6_2.mp4',
                     title: 'Ajustes de Vibración Háptica',
                     category: 'Accesibilidad Táctil',
                     glossText: 'VIBRAR TELÉFONO HÁPTICO TOCAR BOTONES SENTIR ALERTA',

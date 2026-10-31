@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { useSettingsStore } from '@/shared/stores';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 
 interface TextSizeScreenProps {
   onBackPress?: () => void;
@@ -63,6 +63,7 @@ export function TextSizeScreen({ onBackPress }: TextSizeScreenProps) {
             style={styles.lescoBtn}
             onPress={() =>
               setActiveVideo({
+                r2Key: 'lesco/v1/m6/6_3.mp4',
                 title: 'Ajustes de Tamaño de Texto',
                 category: 'Accesibilidad Visual',
                 glossText: 'LETRAS TEXTO TAMAÑO GRANDE PEQUEÑO CONFIGURAR VISUAL FÁCIL',
