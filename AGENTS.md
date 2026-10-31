@@ -14,3 +14,7 @@ Todas las convenciones de arquitectura, estado global, navegación por grupos en
 
 2. **Skill de Desarrollo**:
    - [`.agents/skills/lesconect-dev-workflow/SKILL.md`](file:///.agents/skills/lesconect-dev-workflow/SKILL.md): Guía de referencia técnica y flujo de trabajo para agentes.
+
+## Archivos Archivados (`md-olds/`)
+- La carpeta `md-olds/` contiene documentos, bitácoras y análisis históricos archivados.
+- **Directriz para Agentes:** NO tomar, leer ni considerar los archivos dentro de `md-olds/` en futuras asignaciones. La fuente de verdad activa reside exclusivamente en el código fuente de `src/`, `app/` y la documentación vigente en `LESCOnect-backend/docs/`.

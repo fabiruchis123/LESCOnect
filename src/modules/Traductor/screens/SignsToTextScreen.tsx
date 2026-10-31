@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Animated,
   Dimensions,
@@ -11,13 +11,24 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { CameraView, CameraType, useCameraPermissions } from '../components/CameraWrapper';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { speechService } from '@/shared/utils/speech';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 import { recognizeLescoSignFromBase64, recognizeDynamicLescoSign } from '../services/translatorService';
+import {
+  analyzeLescoGrammarCoherence,
+  applyWordSuggestionToBuffer,
+  type LescoWordSuggestion,
+  type LescoCoherentPhraseMatch,
+} from '../services/lescoGrammarCoherenceService';
+import {
+  classifyTrainedAlphabetLesco,
+  getTrainedLescoLandmarkTemplate,
+} from '../services/lescoAlphabetTrainerService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -626,6 +637,15 @@ export function classifyLescoMotor3(
 export function getLescoLandmarkTemplate(sign: string): Array<{ x: number; y: number }> {
   const cx = 0.5;
   const cy = 0.55;
+
+  const trained = getTrainedLescoLandmarkTemplate(sign);
+  if (trained && trained.length === 21) {
+    return trained.map((pt) => ({
+      x: cx + pt.x * 0.45,
+      y: cy + pt.y * 0.45,
+    }));
+  }
+
   const l = (sign || 'L').toUpperCase();
 
   const w = { x: cx, y: cy + 0.28 };
@@ -765,11 +785,49 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   const [modalSign, setModalSign] = useState<LescoSignItem | null>(null);
   const [autoAddEnabled, setAutoAddEnabled] = useState<boolean>(true);
   const [holdProgress, setHoldProgress] = useState<number>(0);
+  const [activeOfficialVideo, setActiveOfficialVideo] = useState<LescoVideoInfo | null>(null);
+  const [selectedMatchR2Key, setSelectedMatchR2Key] = useState<string | null>(null);
+
+  // Motor de Inteligencia LESCO y Coherencia Gramatical (entrenado con los 54 videos oficiales)
+  const coherenceAnalysis = useMemo(
+    () => analyzeLescoGrammarCoherence(wordBuffer),
+    [wordBuffer]
+  );
+
+  const allCoherentMatches = useMemo(() => {
+    if (!coherenceAnalysis.primaryMatch) return [];
+    return [coherenceAnalysis.primaryMatch, ...coherenceAnalysis.alternatives];
+  }, [coherenceAnalysis]);
+
+  const activeCoherentMatch: LescoCoherentPhraseMatch | null = useMemo(() => {
+    if (allCoherentMatches.length === 0) return null;
+    if (selectedMatchR2Key) {
+      const found = allCoherentMatches.find((m) => m.r2Key === selectedMatchR2Key);
+      if (found) return found;
+    }
+    return allCoherentMatches[0];
+  }, [allCoherentMatches, selectedMatchR2Key]);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const cameraContainerRef = useRef<any>(null);
   const mediaPipeHandsRef = useRef<any>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
+  const webRafIdRef = useRef<number | null>(null);
+  const isCameraReadyRef = useRef<boolean>(false);
+
+  // Pausar cámara automáticamente si el usuario navega a otra pestaña o sale de la pantalla
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        isCameraReadyRef.current = false;
+        if (Platform.OS === 'web') {
+          stopWebcam();
+        } else {
+          setIsCameraActive(false);
+        }
+      };
+    }, [])
+  );
 
   const voteBufferRef = useRef<string[]>([]);
   const holdCounterRef = useRef<number>(0);
@@ -784,7 +842,14 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   const noSignCountRef = useRef<number>(0);
 
   useEffect(() => {
-    if (Platform.OS === 'web' || !isCameraActive || !permission?.granted) return;
+    if (
+      Platform.OS === 'web' ||
+      !isCameraActive ||
+      activeTab !== 'detector' ||
+      !permission?.granted
+    ) {
+      return;
+    }
 
     let isMounted = true;
 
@@ -793,7 +858,12 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
       await new Promise((r) => setTimeout(r, 600));
 
       while (isMounted) {
-        if (!isProcessingRef.current && cameraRef.current && isCameraActive) {
+        if (
+          !isProcessingRef.current &&
+          cameraRef.current &&
+          isCameraReadyRef.current &&
+          isCameraActive
+        ) {
           try {
             isProcessingRef.current = true;
             setIsScanning(true);
@@ -862,7 +932,7 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
       isMounted = false;
       isProcessingRef.current = false;
     };
-  }, [isCameraActive, permission?.granted, autoAddEnabled]);
+  }, [isCameraActive, activeTab, permission?.granted, autoAddEnabled]);
 
   // Cargar MediaPipe Hands en Web Browser
   useEffect(() => {
@@ -923,7 +993,17 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
             trajectoryBufferRef.current.push({ x: wrist.x, y: wrist.y, time: now });
             if (trajectoryBufferRef.current.length > 12) trajectoryBufferRef.current.shift();
 
-            const classification = classifyLescoMotor3(rawLandmarks, trajectoryBufferRef.current, multiHands.length);
+            let classification = classifyLescoMotor3(rawLandmarks, trajectoryBufferRef.current, multiHands.length);
+            if (!classification) {
+              const trainedMatch = classifyTrainedAlphabetLesco(rawLandmarks);
+              if (trainedMatch) {
+                classification = {
+                  letter: trainedMatch.letter,
+                  confidence: trainedMatch.confidence,
+                  isDynamic: trainedMatch.isDynamic,
+                };
+              }
+            }
             if (classification) {
               voteBufferRef.current.push(classification.letter);
               if (voteBufferRef.current.length > 4) voteBufferRef.current.shift();
@@ -1047,7 +1127,10 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
       setCameraStatus('Cámara y Motor LESCO Activos');
 
       const targetHands = handsInstance || mediaPipeHandsRef.current;
-      let animationFrameId: number;
+      if (webRafIdRef.current !== null) {
+        cancelAnimationFrame(webRafIdRef.current);
+        webRafIdRef.current = null;
+      }
 
       const processFrame = async () => {
         if (targetHands && videoEl && videoEl.readyState >= 2 && !videoEl.paused) {
@@ -1055,10 +1138,12 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
             await targetHands.send({ image: videoEl });
           } catch (e) {}
         }
-        animationFrameId = requestAnimationFrame(processFrame);
+        if (cameraStreamRef.current) {
+          webRafIdRef.current = requestAnimationFrame(processFrame);
+        }
       };
 
-      animationFrameId = requestAnimationFrame(processFrame);
+      webRafIdRef.current = requestAnimationFrame(processFrame);
     } catch (err: any) {
       console.warn('Permiso de cámara denegado:', err);
       setCameraStatus('Permite el acceso a la cámara para traducir en vivo');
@@ -1067,6 +1152,10 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   };
 
   const stopWebcam = () => {
+    if (webRafIdRef.current !== null) {
+      cancelAnimationFrame(webRafIdRef.current);
+      webRafIdRef.current = null;
+    }
     if (cameraStreamRef.current) {
       cameraStreamRef.current.getTracks().forEach((track) => track.stop());
       cameraStreamRef.current = null;
@@ -1103,6 +1192,7 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
 
   const toggleCameraFacing = () => {
     haptics.light();
+    isCameraReadyRef.current = false;
     const nextFacing: CameraType = facing === 'front' ? 'back' : 'front';
     setFacing(nextFacing);
     setCameraStatus(nextFacing === 'front' ? 'Cámara frontal activa' : 'Cámara trasera activa');
@@ -1145,13 +1235,43 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
     }
   };
 
+  const handleSelectWordSuggestion = (suggestion: LescoWordSuggestion) => {
+    haptics.success();
+    setSelectedMatchR2Key(null);
+    setWordBuffer((prev) => applyWordSuggestionToBuffer(prev, suggestion));
+  };
+
+  const handleUseCoherentPhrase = (match: LescoCoherentPhraseMatch) => {
+    haptics.success();
+    setWordBuffer(match.phraseEs);
+  };
+
+  const handleSpeakCoherentPhrase = (match: LescoCoherentPhraseMatch) => {
+    haptics.medium();
+    speechService.speak(match.phraseEs);
+  };
+
+  const handleOpenOfficialVideo = (match: LescoCoherentPhraseMatch) => {
+    haptics.medium();
+    setActiveOfficialVideo({
+      title: match.phraseEs,
+      category: match.categoryLabel,
+      glossText: match.lescoGloss,
+      r2Key: match.r2Key,
+    });
+  };
+
   useEffect(() => {
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.08, duration: 650, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1, duration: 650, useNativeDriver: true }),
       ])
-    ).start();
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+    };
   }, [pulseAnim]);
 
   const filteredDictionary = LESCO_DICTIONARY.filter((item) => {
@@ -1238,6 +1358,9 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                       style={StyleSheet.absoluteFill}
                       facing={facing}
                       mirror={facing === 'front'}
+                      onCameraReady={() => {
+                        isCameraReadyRef.current = true;
+                      }}
                     />
                   ) : (
                     <View style={styles.camPausedContainer}>
@@ -1393,6 +1516,148 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                   <Text style={styles.keyActionText}>🗑️</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            {/* 4.5 Barra de Inteligencia LESCO y Coherencia de Frases (Corpus Oficial 54 Videos) */}
+            <View style={styles.intelligenceCard}>
+              <View style={styles.intelligenceHeaderRow}>
+                <View style={styles.intelligenceBadgePill}>
+                  <Text style={styles.intelligenceBadgeText}>
+                    🧠 INTELIGENCIA LESCO • CORPUS 54 VIDEOS
+                  </Text>
+                </View>
+                {coherenceAnalysis.activePrefix ? (
+                  <Text style={styles.prefixIndicatorText}>
+                    Deletreando: "{coherenceAnalysis.activePrefix}..."
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* 1) Chips de Autocompletado de Palabra (1 Toque) */}
+              <Text style={styles.autocompleteLabel}>
+                {coherenceAnalysis.activePrefix
+                  ? '⚡ Completa la palabra con 1 toque:'
+                  : wordBuffer.trim().length > 0
+                  ? '🤟 Siguiente seña / palabra sugerida (Orden LESCO):'
+                  : '🤟 Toca una glosa frecuente o empieza a deletrear:'}
+              </Text>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.autocompleteScroll}
+              >
+                {coherenceAnalysis.wordSuggestions.map((sug) => (
+                  <TouchableOpacity
+                    key={`${sug.word}-${sug.matchedPrefix}`}
+                    style={[
+                      styles.autocompleteChip,
+                      !sug.isNextWordPrediction && styles.autocompleteChipHighlight,
+                    ]}
+                    onPress={() => handleSelectWordSuggestion(sug)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Completar palabra ${sug.word}`}
+                  >
+                    <Text
+                      style={[
+                        styles.autocompleteChipWord,
+                        !sug.isNextWordPrediction && styles.autocompleteChipWordHighlight,
+                      ]}
+                    >
+                      {sug.isNextWordPrediction ? `+ ${sug.word}` : `✨ ${sug.word}`}
+                    </Text>
+                    <Text style={styles.autocompleteChipSub}>{sug.categoryLabel}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* 2) Frase Coherente Sugerida (Español Natural + Video Oficial Asociado) */}
+              {activeCoherentMatch ? (
+                <View style={styles.coherentPhraseBox}>
+                  <View style={styles.coherentTopMetaRow}>
+                    <View style={styles.coherentCatBadge}>
+                      <Text style={styles.coherentCatBadgeText}>
+                        {activeCoherentMatch.categoryLabel}
+                      </Text>
+                    </View>
+                    <Text style={styles.coherentConfidenceText}>
+                      {activeCoherentMatch.confidence}% coherencia
+                    </Text>
+                  </View>
+
+                  <Text style={styles.coherentGlossText}>
+                    Glosa LESCO: {activeCoherentMatch.lescoGloss}
+                  </Text>
+
+                  <Text style={styles.coherentSpanishSentence}>
+                    “{activeCoherentMatch.phraseEs}”
+                  </Text>
+
+                  {/* Selector de frases alternativas si hay varias coincidencias del corpus */}
+                  {allCoherentMatches.length > 1 ? (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.alternativesRow}
+                    >
+                      {allCoherentMatches.map((altMatch, idx) => {
+                        const isSelected = altMatch.r2Key === activeCoherentMatch.r2Key;
+                        return (
+                          <TouchableOpacity
+                            key={altMatch.r2Key}
+                            style={[
+                              styles.altOptionPill,
+                              isSelected && styles.altOptionPillActive,
+                            ]}
+                            onPress={() => {
+                              haptics.light();
+                              setSelectedMatchR2Key(altMatch.r2Key);
+                            }}
+                            activeOpacity={0.75}
+                          >
+                            <Text
+                              style={[
+                                styles.altOptionText,
+                                isSelected && styles.altOptionTextActive,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              Opción {idx + 1}: {altMatch.categoryLabel}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  ) : null}
+
+                  <View style={styles.coherentActionsRow}>
+                    <TouchableOpacity
+                      style={styles.useCoherentBtn}
+                      onPress={() => handleUseCoherentPhrase(activeCoherentMatch)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.useCoherentBtnText}>✨ Usar frase coherente</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.speakCoherentBtn}
+                      onPress={() => handleSpeakCoherentPhrase(activeCoherentMatch)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.speakCoherentBtnText}>🔊 Leer frase en voz alta</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.videoCoherentBtn}
+                      onPress={() => handleOpenOfficialVideo(activeCoherentMatch)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.videoCoherentBtnText}>📹 Ver video LESCO oficial</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
             </View>
 
             {/* 5. Guía del Abecedario LESCO (Carrusel Rápido - SIN EMOJIS CONFUSOS) */}
@@ -1628,6 +1893,15 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
             </View>
           </View>
         </Modal>
+      ) : null}
+
+      {/* Modal de Video Oficial LESCO (Corpus de 54 Videos) */}
+      {activeOfficialVideo ? (
+        <LescoVideoModal
+          visible={true}
+          videoInfo={activeOfficialVideo}
+          onClose={() => setActiveOfficialVideo(null)}
+        />
       ) : null}
     </View>
   );
@@ -2010,6 +2284,202 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#2B241C',
+  },
+  intelligenceCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#D6E4D6',
+    borderLeftWidth: 6,
+    borderLeftColor: '#5C7A5C',
+    marginBottom: Spacing.md,
+    ...Shadows.subtle,
+  },
+  intelligenceHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  intelligenceBadgePill: {
+    backgroundColor: '#EBF2EB',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: '#C5DBC5',
+  },
+  intelligenceBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#3E593E',
+    letterSpacing: 0.4,
+  },
+  prefixIndicatorText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B5551A',
+  },
+  autocompleteLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#5C5042',
+    marginBottom: 6,
+  },
+  autocompleteScroll: {
+    paddingVertical: 2,
+    paddingRight: 10,
+    gap: 8,
+  },
+  autocompleteChip: {
+    backgroundColor: '#FAF7F2',
+    borderWidth: 1.5,
+    borderColor: '#EAE0D0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginRight: 6,
+    justifyContent: 'center',
+  },
+  autocompleteChipHighlight: {
+    backgroundColor: '#FFF5EB',
+    borderColor: '#B5551A',
+  },
+  autocompleteChipWord: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#2B241C',
+  },
+  autocompleteChipWordHighlight: {
+    color: '#B5551A',
+  },
+  autocompleteChipSub: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#7A6E5C',
+    marginTop: 1,
+  },
+  coherentPhraseBox: {
+    marginTop: 10,
+    backgroundColor: '#F6FAF6',
+    borderRadius: 14,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#C5DBC5',
+  },
+  coherentTopMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  coherentCatBadge: {
+    backgroundColor: '#5C7A5C',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.pill,
+  },
+  coherentCatBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  coherentConfidenceText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#3E593E',
+  },
+  coherentGlossText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#B5551A',
+    marginTop: 2,
+    marginBottom: 4,
+    letterSpacing: 0.3,
+  },
+  coherentSpanishSentence: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#2B241C',
+    lineHeight: 21,
+    marginBottom: 8,
+  },
+  alternativesRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 8,
+  },
+  altOptionPill: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#C5DBC5',
+    borderRadius: Radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 6,
+  },
+  altOptionPillActive: {
+    backgroundColor: '#3E593E',
+    borderColor: '#3E593E',
+  },
+  altOptionText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#3E593E',
+  },
+  altOptionTextActive: {
+    color: '#FFFFFF',
+  },
+  coherentActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  useCoherentBtn: {
+    flexGrow: 1,
+    backgroundColor: '#B5551A',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  useCoherentBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  speakCoherentBtn: {
+    flexGrow: 1,
+    backgroundColor: '#5C7A5C',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speakCoherentBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  videoCoherentBtn: {
+    flexGrow: 1,
+    backgroundColor: '#2B241C',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoCoherentBtnText: {
+    color: '#FBF6EE',
+    fontSize: 11,
+    fontWeight: '800',
   },
   abecedarioSection: {
     marginBottom: Spacing.lg,

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Alert,
   Linking,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,10 +12,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
-import { formatCRPhone } from '@/modules/Auth/components/ContactPickerModal';
 import { SosContact, SosContactsScreenProps } from '../types/emergencias.types';
+import {
+  getPreciseGpsCoordinates,
+  buildEmergencySosMessage,
+  dispatchEmergencySosAlert,
+} from '../services/emergencyLocationService';
 
 export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
   const router = useRouter();
@@ -69,15 +72,25 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
     });
   };
 
-  const handleSms = (phone: string) => {
-    haptics.medium();
-    const cleanPhone = phone.replace(/[^0-9+]/g, '');
-    const message = encodeURIComponent(
-      '🚨 ALERTA SOS LESCOnect: Soy una persona no oyente y necesito auxilio urgente. Mi GPS está activo.'
-    );
-    Linking.openURL(`sms:${cleanPhone}?body=${message}`).catch(() => {
-      Alert.alert('SMS SOS', `Enviando alerta por SMS a: ${phone}`);
-    });
+  const handleSms = async (phone: string, contactName?: string) => {
+    haptics.emergency();
+    const targetContact: SosContact = {
+      id: 'target',
+      name: contactName || 'Contacto SOS',
+      phone,
+      relation: 'Familiar',
+      knowsLesco: true,
+      receivesSms: true,
+    };
+    const res = await dispatchEmergencySosAlert([targetContact], 'Auxilio inmediato', user?.name);
+    if (res.success) {
+      const serverMsg = res.dispatchedByServer
+        ? 'El servidor envió automáticamente la alerta con tu ubicación satelital.'
+        : 'Alerta preparada con tu ubicación GPS satelital.';
+      Alert.alert('✅ Alerta Enviada', `${serverMsg}\n\nDestinatario: ${phone}`);
+    } else {
+      Alert.alert('Alerta SOS', res.error || 'No se pudo completar el despacho de auxilio.');
+    }
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -126,7 +139,25 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
           </TouchableOpacity>
           <Text style={styles.backBtnLabel}>Volver a Emergencias</Text>
 
-          {/* Botón de Video LESCO explicativo */}
+          <TouchableOpacity
+            style={styles.lescoHelpBtn}
+            onPress={() => {
+              haptics.light();
+              setActiveVideo({
+                r2Key: 'lesco/v1/m1/1_4.mp4',
+                title: 'Selector de Contacto de Emergencia SOS',
+                category: 'Contactos SOS',
+                glossText:
+                  'TARJETA EMERGENCIA / TOCAR MIS CONTACTOS / ELEGIR PARENTESCO / MARCAR SABE LESCO',
+              });
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Ver en señas LESCO cómo configurar tus contactos SOS"
+          >
+            <Text style={{ fontSize: 12, marginRight: 4 }}>📹</Text>
+            <Text style={styles.lescoHelpBtnText}>Ver en señas</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.title}>Contactos SOS</Text>
@@ -155,8 +186,6 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
             </TouchableOpacity>
           </View>
 
-
-
           {/* Lista Dinámica de Contactos */}
           <View style={styles.contactsList}>
             {contacts.length === 0 ? (
@@ -176,63 +205,64 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
                       <Text style={styles.indexCircleText}>{index + 1}</Text>
                     </View>
 
-                  <View style={styles.contactInfo}>
-                    <Text style={styles.contactName}>{contact.name}</Text>
-                    <Text style={styles.contactPhone}>
-                      {contact.phone} •{' '}
-                      <Text style={styles.contactRelation}>{contact.relation}</Text>
-                    </Text>
+                    <View style={styles.contactInfo}>
+                      <Text style={styles.contactName}>{contact.name}</Text>
+                      <Text style={styles.contactPhone}>
+                        {contact.phone} •{' '}
+                        <Text style={styles.contactRelation}>{contact.relation}</Text>
+                      </Text>
 
-                    {/* Chips de Accesibilidad */}
-                    <View style={styles.chipsRow}>
-                      {contact.knowsLesco && (
-                        <View style={styles.lescoChip}>
-                          <Text style={styles.lescoChipText}>🤟 LESCO</Text>
-                        </View>
-                      )}
-                      {contact.receivesSms && (
-                        <View style={styles.smsChip}>
-                          <Text style={styles.smsChipText}>💬 SMS</Text>
-                        </View>
-                      )}
+                      {/* Chips de Accesibilidad */}
+                      <View style={styles.chipsRow}>
+                        {contact.knowsLesco && (
+                          <View style={styles.lescoChip}>
+                            <Text style={styles.lescoChipText}>🤟 LESCO</Text>
+                          </View>
+                        )}
+                        {contact.receivesSms && (
+                          <View style={styles.smsChip}>
+                            <Text style={styles.smsChipText}>💬 SMS</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                   </View>
-                </View>
 
-                {/* Acciones de Llamada, Mensaje (SMS) y Borrar */}
-                <View style={styles.actionsRow}>
-                  <TouchableOpacity
-                    style={styles.callBtn}
-                    onPress={() => handleCall(contact.phone)}
-                    activeOpacity={0.8}
-                    accessibilityLabel={`Llamar a ${contact.name}`}
-                  >
-                    <Text style={styles.callBtnIcon}>📞</Text>
-                    <Text style={styles.callBtnText}>Llamar</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.smsActionBtn}
-                    onPress={() => handleSms(contact.phone)}
-                    activeOpacity={0.8}
-                    accessibilityLabel={`Enviar mensaje a ${contact.name}`}
-                  >
-                    <Text style={styles.smsActionBtnIcon}>💬</Text>
-                  </TouchableOpacity>
-
-                  {contacts.length > 1 && (
+                  {/* Acciones de Llamada, Mensaje (SMS) y Borrar */}
+                  <View style={styles.actionsRow}>
                     <TouchableOpacity
-                      style={styles.deleteBtn}
-                      onPress={() => handleDelete(contact.id, contact.name)}
-                      activeOpacity={0.7}
-                      accessibilityLabel={`Eliminar ${contact.name}`}
+                      style={styles.callBtn}
+                      onPress={() => handleCall(contact.phone)}
+                      activeOpacity={0.8}
+                      accessibilityLabel={`Llamar a ${contact.name}`}
                     >
-                      <Text style={styles.deleteBtnText}>✕</Text>
+                      <Text style={styles.callBtnIcon}>📞</Text>
+                      <Text style={styles.callBtnText}>Llamar</Text>
                     </TouchableOpacity>
-                  )}
+
+                    <TouchableOpacity
+                      style={styles.smsActionBtn}
+                      onPress={() => handleSms(contact.phone)}
+                      activeOpacity={0.8}
+                      accessibilityLabel={`Enviar mensaje a ${contact.name}`}
+                    >
+                      <Text style={styles.smsActionBtnIcon}>💬</Text>
+                    </TouchableOpacity>
+
+                    {contacts.length > 1 && (
+                      <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => handleDelete(contact.id, contact.name)}
+                        activeOpacity={0.7}
+                        accessibilityLabel={`Eliminar ${contact.name}`}
+                      >
+                        <Text style={styles.deleteBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-              </View>
-            )))}
+              ))
+            )}
           </View>
         </View>
       </ScrollView>

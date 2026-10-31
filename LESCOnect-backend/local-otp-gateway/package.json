@@ -1,0 +1,17 @@
+{
+  "name": "lesconect-local-otp-gateway",
+  "version": "1.0.0",
+  "description": "Gateway Open Source y Gratuito ($0) para Envío de OTPs por WhatsApp y SMS en Pruebas de LESCOnect",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.12",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "pino": "^9.5.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

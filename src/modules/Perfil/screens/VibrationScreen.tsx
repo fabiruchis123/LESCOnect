@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 
 import { useSettingsStore } from '@/shared/stores';
 
@@ -57,6 +57,7 @@ export function VibrationScreen({ onBackPress }: VibrationScreenProps) {
             style={styles.lescoBtn}
             onPress={() =>
               setActiveVideo({
+                r2Key: 'lesco/v1/m6/6_2.mp4',
                 title: 'Ajustes de Vibración Háptica',
                 category: 'Accesibilidad Táctil',
                 glossText: 'VIBRAR TELÉFONO HÁPTICO TOCAR BOTONES SENTIR ALERTA',

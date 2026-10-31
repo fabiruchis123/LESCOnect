@@ -26,13 +26,16 @@ export const speechService = {
       }
 
       // Entorno nativo con expo-speech
-      Speech.stop();
-      Speech.speak(text, {
-        language: 'es-CR',
-        pitch: 1.0,
-        rate: 0.92,
-        onDone,
-      });
+      Speech.stop()
+        .catch(() => {})
+        .finally(() => {
+          Speech.speak(text, {
+            language: 'es-CR',
+            pitch: 1.0,
+            rate: 0.92,
+            onDone,
+          });
+        });
     } catch (error) {
       console.warn('Error en síntesis de voz TTS:', error);
     }

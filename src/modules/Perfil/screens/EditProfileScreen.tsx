@@ -11,16 +11,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as Contacts from 'expo-contacts/legacy';
+import * as Contacts from 'expo-contacts';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { useAuthStore } from '@/shared/stores';
-import { DatePickerModal } from '@/modules/Auth/components/DatePickerModal';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 import {
+  DatePickerModal,
   ContactPickerModal,
   PhoneContact,
   formatCRPhone,
-} from '@/modules/Auth/components/ContactPickerModal';
+} from '@/modules/Auth';
 
 interface EditProfileScreenProps {
   onBackPress?: () => void;
@@ -59,6 +60,7 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
   const [isContactPickerVisible, setIsContactPickerVisible] = useState(false);
   const [deviceContacts, setDeviceContacts] = useState<PhoneContact[]>([]);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
 
   const handleBack = () => {
     haptics.light();
@@ -72,6 +74,13 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
   // Abrir Libreta de Contactos Nativa
   const handlePickContact = async () => {
     haptics.light();
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Libreta de Contactos',
+        'En navegador web escribe el nombre y teléfono manualmente. En el celular puedes elegir directamente de tus contactos.'
+      );
+      return;
+    }
     try {
       const { status } = await Contacts.requestPermissionsAsync();
       if (status === 'granted') {
@@ -131,25 +140,34 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
     }
     haptics.success();
 
-    // Actualizar SOS Contacts array reactivo
+    // Actualizar el contacto primario (sosContacts[0]) conservando intactos los contactos SOS adicionales (2..5)
     const formattedSosPhone = formatCRPhone(emergencyContact);
-    const updatedSosList = emergencyContactName.trim() && formattedSosPhone
-      ? [
-          {
-            id: initialSos?.id || Date.now().toString(),
-            name: emergencyContactName.trim(),
-            phone: formattedSosPhone,
-            relation: emergencyContactRelation,
-            knowsLesco: emergencyContactKnowsLesco,
-            receivesSms: true,
-          },
-        ]
-      : user?.sosContacts || [];
+    const additionalSosContacts = Array.isArray(user?.sosContacts)
+      ? user.sosContacts.slice(1)
+      : [];
+    const updatedSosList =
+      emergencyContactName.trim() && formattedSosPhone
+        ? [
+            {
+              id: initialSos?.id || Date.now().toString(),
+              name: emergencyContactName.trim(),
+              phone: formattedSosPhone,
+              relation: emergencyContactRelation,
+              knowsLesco: emergencyContactKnowsLesco,
+              receivesSms: initialSos?.receivesSms ?? true,
+            },
+            ...additionalSosContacts,
+          ]
+        : user?.sosContacts || [];
+
+    const cleanNombre = nombre.trim();
+    const cleanApellidos = apellidos.trim();
+    const fullName = `${cleanNombre} ${cleanApellidos}`.trim();
 
     updateUser({
-      name: nombre.trim(),
-      nombre: nombre.trim(),
-      apellidos: apellidos.trim(),
+      name: fullName,
+      nombre: cleanNombre,
+      apellidos: cleanApellidos,
       phone: telefono.trim(),
       telefono: telefono.trim(),
       fechaNacimiento: birthDate.trim(),
@@ -175,6 +193,26 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
             <Text style={styles.backBtnText}>←</Text>
           </TouchableOpacity>
           <Text style={styles.backBtnLabel}>Volver al perfil</Text>
+
+          <TouchableOpacity
+            style={styles.lescoBtn}
+            onPress={() => {
+              haptics.light();
+              setActiveVideo({
+                r2Key: 'lesco/v1/m6/6_1.mp4',
+                title: 'Edición de Perfil de Usuario',
+                category: 'Perfil, Ajustes y Accesibilidad',
+                glossText:
+                  'ACTUALIZAR NOMBRE TELÉFONO CONTACTO EMERGENCIA / CÉDULA ÚNICA BLOQUEADA SEGURIDAD',
+              });
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Ver explicación de Editar Perfil en señas LESCO"
+          >
+            <Text style={{ fontSize: 13, marginRight: 4 }}>📹</Text>
+            <Text style={styles.lescoBtnText}>Ver en señas</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.title}>Editar perfil</Text>
@@ -247,7 +285,27 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
 
           {/* Campo 4: Fecha de nacimiento con Selector Desplegable */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Fecha de nacimiento</Text>
+            <View style={styles.labelRowWithBadge}>
+              <Text style={[styles.label, { marginBottom: 0 }]}>Fecha de nacimiento</Text>
+              <TouchableOpacity
+                style={styles.lescoFieldChip}
+                onPress={() => {
+                  haptics.light();
+                  setActiveVideo({
+                    r2Key: 'lesco/v1/m1/1_3.mp4',
+                    title: 'Selector de Fecha de Nacimiento',
+                    category: 'Registro y Perfil',
+                    glossText: 'TOCAR FECHA NACIMIENTO / ELEGIR AÑO / ELEGIR MES / GUARDAR FECHA',
+                  });
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Ver en señas LESCO cómo elegir la fecha de nacimiento"
+              >
+                <Text style={{ fontSize: 11 }}>📹</Text>
+                <Text style={styles.lescoFieldChipText}>Ver en señas</Text>
+              </TouchableOpacity>
+            </View>
             <View style={[styles.inputWithIcon, focusedField === 'birthDate' && styles.inputFocused]}>
               <TextInput
                 style={styles.textInputInside}
@@ -282,15 +340,37 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
                 <Text style={styles.sosHeaderTitle}>Contacto SOS</Text>
               </View>
 
-              <TouchableOpacity
-                style={styles.pickContactBtn}
-                onPress={handlePickContact}
-                activeOpacity={0.75}
-                accessibilityLabel="Elegir de mis contactos"
-              >
-                <Text style={{ fontSize: 12 }}>👤</Text>
-                <Text style={styles.pickContactBtnText}>Mis contactos</Text>
-              </TouchableOpacity>
+              <View style={styles.sosHeaderActionsRow}>
+                <TouchableOpacity
+                  style={styles.lescoFieldChip}
+                  onPress={() => {
+                    haptics.light();
+                    setActiveVideo({
+                      r2Key: 'lesco/v1/m1/1_4.mp4',
+                      title: 'Selector de Contacto de Emergencia SOS',
+                      category: 'Registro y Perfil',
+                      glossText:
+                        'TARJETA EMERGENCIA / TOCAR MIS CONTACTOS / ELEGIR PARENTESCO / MARCAR SABE LESCO',
+                    });
+                  }}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver en señas LESCO cómo configurar el contacto SOS"
+                >
+                  <Text style={{ fontSize: 11 }}>📹</Text>
+                  <Text style={styles.lescoFieldChipText}>Señas</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.pickContactBtn}
+                  onPress={handlePickContact}
+                  activeOpacity={0.75}
+                  accessibilityLabel="Elegir de mis contactos"
+                >
+                  <Text style={{ fontSize: 12 }}>👤</Text>
+                  <Text style={styles.pickContactBtnText}>Mis contactos</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Nombre del Contacto */}
@@ -399,6 +479,15 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
           }
         }}
       />
+
+      {/* Modal de Video LESCO (6_1 Editar Perfil, 1_3 Fecha Nacimiento, 1_4 Contacto SOS) */}
+      {activeVideo ? (
+        <LescoVideoModal
+          visible={true}
+          videoInfo={activeVideo}
+          onClose={() => setActiveVideo(null)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -439,6 +528,43 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.xs,
     fontWeight: Typography.weights.bold,
     color: '#7A6E5C',
+    flex: 1,
+  },
+  lescoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3EADA',
+    borderWidth: 1,
+    borderColor: '#E8DFCE',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+  },
+  lescoBtnText: {
+    fontSize: 11,
+    fontWeight: Typography.weights.bold,
+    color: '#B5551A',
+  },
+  lescoFieldChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3EADA',
+    borderWidth: 1,
+    borderColor: '#E8DFCE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.pill,
+  },
+  lescoFieldChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B5551A',
+  },
+  sosHeaderActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   title: {
     fontSize: 28,

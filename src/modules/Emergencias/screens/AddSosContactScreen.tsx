@@ -15,7 +15,8 @@ import { useRouter } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
-import { formatCRPhone } from '@/modules/Auth/components/ContactPickerModal';
+import { formatCRPhone } from '@/modules/Auth';
+import { appPermissionsService } from '@/shared/services/appPermissionsService';
 import { SosContact } from '../types/emergencias.types';
 
 /**
@@ -67,6 +68,17 @@ export function AddSosContactScreen() {
   const handleBack = () => {
     haptics.light();
     router.back();
+  };
+
+  const handlePickFromAgenda = async () => {
+    if (isLimitReached) return;
+    haptics.light();
+    const picked = await appPermissionsService.pickPhoneContact();
+    if (picked) {
+      if (picked.name) setName(picked.name);
+      if (picked.phone) setPhone(formatCRPhone(picked.phone));
+      haptics.success();
+    }
   };
 
   const handleSave = () => {
@@ -134,6 +146,24 @@ export function AddSosContactScreen() {
               ⚠️ Ya tienes 5 contactos SOS (límite máximo). Elimina uno desde la pantalla anterior.
             </Text>
           </View>
+        )}
+
+        {/* Botón Importar desde la Agenda del Teléfono */}
+        {!isLimitReached && (
+          <TouchableOpacity
+            style={styles.importAgendaBtn}
+            onPress={handlePickFromAgenda}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Elegir un contacto de la agenda del teléfono"
+          >
+            <Text style={styles.importAgendaIcon}>📱</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.importAgendaTitle}>Elegir de mi Agenda Telefónica</Text>
+              <Text style={styles.importAgendaSubtitle}>Auto-rellena el nombre y teléfono del contacto</Text>
+            </View>
+            <Text style={styles.importAgendaArrow}>→</Text>
+          </TouchableOpacity>
         )}
 
         {/* Formulario */}
@@ -485,6 +515,36 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.medium,
     lineHeight: 18,
     textAlign: 'center',
+  },
+
+  importAgendaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#4A6572',
+    gap: 12,
+  },
+  importAgendaIcon: {
+    fontSize: 24,
+  },
+  importAgendaTitle: {
+    fontSize: 14,
+    fontWeight: Typography.weights.bold,
+    color: '#2B241C',
+  },
+  importAgendaSubtitle: {
+    fontSize: 11,
+    color: '#7A6E5C',
+    marginTop: 2,
+  },
+  importAgendaArrow: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#4A6572',
   },
 
   pressed: {

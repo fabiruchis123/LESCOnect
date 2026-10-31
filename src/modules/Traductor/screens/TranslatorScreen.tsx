@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   Alert,
   ScrollView,
@@ -14,16 +14,16 @@ import { useLocalSearchParams } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { speechService } from '@/shared/utils/speech';
-import { LescoVideoModal, type LescoVideoInfo } from '@/modules/Home';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 import { SignsToTextScreen } from './SignsToTextScreen';
 
-const QUICK_CHIPS = ['Hola', 'Por favor', 'Gracias', '¿Dónde queda?', 'Necesito ayuda'];
+const QUICK_CHIPS = ['Hola', 'Por favor', 'Gracias', 'Â¿DÃ³nde queda?', 'Necesito ayuda'];
 
 export function TranslatorScreen() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const [mode, setMode] = useState<'signsToText' | 'textToSigns'>('signsToText');
 
-  // Sincronizar parámetro si proviene de otra vista
+  // Sincronizar parÃ¡metro si proviene de otra vista
   useEffect(() => {
     if (params.mode === 'textToSigns' || params.mode === 'text_to_signs') {
       setMode('textToSigns');
@@ -32,15 +32,15 @@ export function TranslatorScreen() {
     }
   }, [params.mode]);
 
-  // Estados Modo Cámara (Señas → Texto/Voz)
+  // Estados Modo CÃ¡mara (SeÃ±as â†’ Texto/Voz)
   const [isDetecting, setIsDetecting] = useState(false);
   const [isFrontCamera, setIsFrontCamera] = useState(false);
   const [isFlashOn, setIsFlashOn] = useState(false);
   const [transcribedText, setTranscribedText] = useState(
-    'Hola, buenos días. ¿Dónde puedo realizar este trámite?'
+    'Hola, buenos dÃ­as. Â¿DÃ³nde puedo realizar este trÃ¡mite?'
   );
 
-  // Estados Modo Texto/Voz (Texto/Voz → Señas)
+  // Estados Modo Texto/Voz (Texto/Voz â†’ SeÃ±as)
   const [inputText, setInputText] = useState('');
   const [speed, setSpeed] = useState<'0.5x' | '0.75x' | '1x'>('1x');
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
@@ -49,7 +49,7 @@ export function TranslatorScreen() {
     haptics.medium();
     setIsDetecting((prev) => !prev);
     if (!isDetecting) {
-      setTranscribedText('Detectando señas...');
+      setTranscribedText('Detectando seÃ±as...');
       setTimeout(() => {
         setTranscribedText('Hola, necesito asistencia en ventanilla');
         haptics.success();
@@ -64,21 +64,21 @@ export function TranslatorScreen() {
 
   const handleTranslateToSigns = () => {
     if (!inputText.trim()) {
-      Alert.alert('Escribe una frase', 'Por favor ingresa texto para generar la seña en LESCO.');
+      Alert.alert('Escribe una frase', 'Por favor ingresa texto para generar la seÃ±a en LESCO.');
       return;
     }
     haptics.success();
     setActiveVideo({
       title: inputText.trim(),
-      category: 'Traducción a Señas',
-      glossText: inputText.trim().toUpperCase().split(' ').join(' • '),
+      category: 'TraducciÃ³n a SeÃ±as',
+      glossText: inputText.trim().toUpperCase().split(' ').join(' â€¢ '),
     });
   };
 
   const handleVoiceDictation = () => {
     haptics.medium();
     Alert.alert(
-      '🎙️ Dictado por Voz',
+      'ðŸŽ™ï¸ Dictado por Voz',
       'Escuchando audio... Di tu frase con claridad.',
       [
         {
@@ -99,7 +99,7 @@ export function TranslatorScreen() {
       {/* Encabezado Principal Limpio y Fijo */}
       <View style={styles.fixedHeader}>
         <Text style={styles.title}>Traductor LESCO</Text>
-        <Text style={styles.subtitle}>Traducción bidireccional en tiempo real</Text>
+        <Text style={styles.subtitle}>TraducciÃ³n bidireccional en tiempo real</Text>
 
         {/* Selector de Modo */}
         <View style={styles.tabBarContainer}>
@@ -117,7 +117,7 @@ export function TranslatorScreen() {
                 mode === 'signsToText' && styles.tabBtnTextActiveSigns,
               ]}
             >
-              📷 Señas → Texto
+              ðŸ“· SeÃ±as â†’ Texto
             </Text>
           </TouchableOpacity>
 
@@ -135,14 +135,14 @@ export function TranslatorScreen() {
                 mode === 'textToSigns' && styles.tabBtnTextActiveText,
               ]}
             >
-              💬 Texto → Señas
+              ðŸ’¬ Texto â†’ SeÃ±as
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* ======================================================= */}
-      {/* MODO 1: CÁMARA (SEÑAS → TEXTO / VOZ CON ABECEDARIO)     */}
+      {/* MODO 1: CÃMARA (SEÃ‘AS â†’ TEXTO / VOZ CON ABECEDARIO)     */}
       {/* ======================================================= */}
       {mode === 'signsToText' && (
         <View style={{ flex: 1 }}>
@@ -151,11 +151,11 @@ export function TranslatorScreen() {
       )}
 
       {/* ======================================================= */}
-      {/* MODO 2: REPRODUCTOR (TEXTO / VOZ → SEÑAS)               */}
+      {/* MODO 2: REPRODUCTOR (TEXTO / VOZ â†’ SEÃ‘AS)               */}
       {/* ======================================================= */}
       {mode === 'textToSigns' && (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Cuadro del Reproductor de Señas */}
+          {/* Cuadro del Reproductor de SeÃ±as */}
             <View style={styles.playerBox}>
               <View style={styles.speedRow}>
                 {(['0.5x', '0.75x', '1x'] as const).map((s) => (
@@ -181,15 +181,15 @@ export function TranslatorScreen() {
               </View>
 
               <View style={styles.iconCircle}>
-                <Text style={{ fontSize: 32 }}>🤟</Text>
+                <Text style={{ fontSize: 32 }}>ðŸ¤Ÿ</Text>
               </View>
-              <Text style={styles.playerTitle}>Reproductor de Señas LESCO</Text>
+              <Text style={styles.playerTitle}>Reproductor de SeÃ±as LESCO</Text>
               <Text style={styles.playerSub}>
-                Los clips secuenciales de señas se reproducirán aquí
+                Los clips secuenciales de seÃ±as se reproducirÃ¡n aquÃ­
               </Text>
             </View>
 
-            {/* Chips de Frases Rápidas */}
+            {/* Chips de Frases RÃ¡pidas */}
             <View style={styles.quickChipsRow}>
               {QUICK_CHIPS.map((chip) => (
                 <TouchableOpacity
@@ -209,7 +209,7 @@ export function TranslatorScreen() {
             {/* Entrada de Texto */}
             <TextInput
               style={styles.textArea}
-              placeholder="Escribe aquí lo que deseas traducir a señas LESCO..."
+              placeholder="Escribe aquÃ­ lo que deseas traducir a seÃ±as LESCO..."
               placeholderTextColor="#7A6E5C"
               multiline
               numberOfLines={4}
@@ -217,15 +217,15 @@ export function TranslatorScreen() {
               onChangeText={setInputText}
             />
 
-            {/* Botones de Acción */}
+            {/* Botones de AcciÃ³n */}
             <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={styles.translateBtn}
                 onPress={handleTranslateToSigns}
                 activeOpacity={0.85}
               >
-                <Text style={styles.translateBtnText}>Traducir a señas</Text>
-                <Text style={{ fontSize: 18 }}>🤟</Text>
+                <Text style={styles.translateBtnText}>Traducir a seÃ±as</Text>
+                <Text style={{ fontSize: 18 }}>ðŸ¤Ÿ</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -233,7 +233,7 @@ export function TranslatorScreen() {
                 onPress={handleVoiceDictation}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontSize: 16 }}>🎤</Text>
+                <Text style={{ fontSize: 16 }}>ðŸŽ¤</Text>
                 <Text style={styles.dictationBtnText}>Usar dictado por voz</Text>
               </TouchableOpacity>
             </View>
@@ -594,3 +594,4 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.bold,
   },
 });
+
