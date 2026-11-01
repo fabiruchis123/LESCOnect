@@ -1,4 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
+import {
+  analyzeLescoGrammarCoherence,
+  applyWordSuggestionToBuffer,
+  type LescoWordSuggestion,
+  type LescoCoherentPhraseMatch,
+} from '../services/lescoGrammarCoherenceService';
+import { classifyTrainedAlphabetLesco } from '../services/lescoAlphabetTrainerService';
 import {
   Animated,
   Dimensions,
@@ -690,7 +699,28 @@ export function classifyLescoMotor3(
     }
   } catch (_err) {}
 
-  return null;
+      // ── FALLBACK A MODELO ENTRENADO DACTILOLÓGICO BAYESIANO ─────────
+    try {
+      const trained = classifyTrainedAlphabetLesco(landmarks as any);
+      if (trained && trained.confidence >= 60) {
+        if (trained.letter === 'U' || trained.letter === 'V') {
+          return { letter: angleIndexMiddleDeg >= 13.5 ? 'V' : 'U', confidence: 98 };
+        }
+        if (trained.letter === 'O' && isCircleO) {
+          return { letter: 'O', confidence: 99 };
+        }
+        if (trained.letter === 'Y' && !isCircleO && isPinkyExt) {
+          return { letter: 'Y', confidence: 99 };
+        }
+        return {
+          letter: trained.letter,
+          confidence: Math.round(trained.confidence * 100),
+          isDynamic: trained.isDynamic,
+        };
+      }
+    } catch (_err) {}
+
+    return null;
 }
 
 
@@ -838,6 +868,28 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   const [realLandmarks, setRealLandmarks] = useState<Array<{ x: number; y: number }>>([]);
   const [wordBuffer, setWordBuffer] = useState<string>('');
   const [modalSign, setModalSign] = useState<LescoSignItem | null>(null);
+  const [activeOfficialVideo, setActiveOfficialVideo] = useState<LescoVideoInfo | null>(null);
+  const [selectedMatchR2Key, setSelectedMatchR2Key] = useState<string | null>(null);
+
+  // Motor de Inteligencia LESCO y Coherencia Gramatical (CENAREC + 54 videos oficiales)
+  const coherenceAnalysis = useMemo(
+    () => analyzeLescoGrammarCoherence(wordBuffer),
+    [wordBuffer]
+  );
+
+  const allCoherentMatches = useMemo(() => {
+    if (!coherenceAnalysis.primaryMatch) return [];
+    return [coherenceAnalysis.primaryMatch, ...coherenceAnalysis.alternatives];
+  }, [coherenceAnalysis]);
+
+  const activeCoherentMatch: LescoCoherentPhraseMatch | null = useMemo(() => {
+    if (allCoherentMatches.length === 0) return null;
+    if (selectedMatchR2Key) {
+      const found = allCoherentMatches.find((m) => m.r2Key === selectedMatchR2Key);
+      if (found) return found;
+    }
+    return allCoherentMatches[0];
+  }, [allCoherentMatches, selectedMatchR2Key]);
   const [autoAddEnabled, setAutoAddEnabled] = useState<boolean>(true);
   const [holdProgress, setHoldProgress] = useState<number>(0);
 
@@ -1279,6 +1331,31 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
     setWordBuffer('');
   };
 
+  const handleSelectWordSuggestion = (suggestion: LescoWordSuggestion) => {
+    haptics.success();
+    setSelectedMatchR2Key(null);
+    setWordBuffer((prev) => applyWordSuggestionToBuffer(prev, suggestion));
+  };
+
+  const handleUseCoherentPhrase = (match: LescoCoherentPhraseMatch) => {
+    haptics.success();
+    setWordBuffer(match.phraseEs);
+  };
+
+  const handleSpeakCoherentPhrase = (match: LescoCoherentPhraseMatch) => {
+    haptics.medium();
+    speechService.speak(match.phraseEs);
+  };
+
+  const handleOpenOfficialVideo = (match: LescoCoherentPhraseMatch) => {
+    haptics.medium();
+    setActiveOfficialVideo({
+      title: match.phraseEs,
+      category: match.categoryLabel,
+      glossText: match.lescoGloss,
+    });
+  };
+
   const handleSpeak = () => {
     haptics.light();
     if (wordBuffer.trim().length > 0) {
@@ -1540,7 +1617,147 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                 >
                   <Text style={styles.keyActionText}>🗑️</Text>
                 </TouchableOpacity>
-              </View>
+              
+
+                {/* ── BARRA DE INTELIGENCIA LESCO & AUTOCOMPLETADO (1-TOQUE) ── */}
+                <View style={styles.intelligenceHeaderRow}>
+                  <View style={styles.intelligenceBadgePill}>
+                    <Text style={styles.intelligenceBadgeText}>
+                      🧠 INTELIGENCIA LESCO • CENAREC + 54 VIDEOS
+                    </Text>
+                  </View>
+                  {coherenceAnalysis.activePrefix ? (
+                    <Text style={styles.prefixIndicatorText}>
+                      Deletreando: "{coherenceAnalysis.activePrefix}..."
+                    </Text>
+                  ) : null}
+                </View>
+
+                {/* Chips de Autocompletado */}
+                <Text style={styles.autocompleteLabel}>
+                  {coherenceAnalysis.activePrefix
+                    ? '⚡ Completa la palabra con 1 toque:'
+                    : wordBuffer.trim().length > 0
+                    ? '🤟 Siguiente seña sugerida (Orden LESCO):'
+                    : '🤟 Señas frecuentes o empieza a deletrear:'}
+                </Text>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.autocompleteScroll}
+                >
+                  {coherenceAnalysis.wordSuggestions.map((sug) => (
+                    <TouchableOpacity
+                      key={`${sug.word}-${sug.matchedPrefix}`}
+                      style={[
+                        styles.autocompleteChip,
+                        !sug.isNextWordPrediction && styles.autocompleteChipHighlight,
+                      ]}
+                      onPress={() => handleSelectWordSuggestion(sug)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Completar palabra ${sug.word}`}
+                    >
+                      <Text
+                        style={[
+                          styles.autocompleteChipWord,
+                          !sug.isNextWordPrediction && styles.autocompleteChipWordHighlight,
+                        ]}
+                      >
+                        {sug.isNextWordPrediction ? `+ ${sug.word}` : `✨ ${sug.word}`}
+                      </Text>
+                      <Text style={styles.autocompleteChipSub}>{sug.categoryLabel}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* Frase Coherente Sugerida (Español Natural + Video Oficial) */}
+                {activeCoherentMatch ? (
+                  <View style={styles.coherentPhraseBox}>
+                    <View style={styles.coherentTopMetaRow}>
+                      <View style={styles.coherentCatBadge}>
+                        <Text style={styles.coherentCatBadgeText}>
+                          {activeCoherentMatch.categoryLabel}
+                        </Text>
+                      </View>
+                      <Text style={styles.coherentConfidenceText}>
+                        {activeCoherentMatch.confidence}% coherencia
+                      </Text>
+                    </View>
+
+                    <Text style={styles.coherentGlossText}>
+                      Glosa LESCO: {activeCoherentMatch.lescoGloss}
+                    </Text>
+
+                    <Text style={styles.coherentSpanishSentence}>
+                      “{activeCoherentMatch.phraseEs}”
+                    </Text>
+
+                    {allCoherentMatches.length > 1 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.alternativesRow}
+                      >
+                        {allCoherentMatches.map((altMatch, idx) => {
+                          const isSelected = altMatch.r2Key === activeCoherentMatch.r2Key;
+                          return (
+                            <TouchableOpacity
+                              key={altMatch.r2Key}
+                              style={[
+                                styles.altOptionPill,
+                                isSelected && styles.altOptionPillActive,
+                              ]}
+                              onPress={() => {
+                                haptics.light();
+                                setSelectedMatchR2Key(altMatch.r2Key);
+                              }}
+                              activeOpacity={0.75}
+                            >
+                              <Text
+                                style={[
+                                  styles.altOptionText,
+                                  isSelected && styles.altOptionTextActive,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                Opción {idx + 1}: {altMatch.categoryLabel}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    ) : null}
+
+                    <View style={styles.coherentActionsRow}>
+                      <TouchableOpacity
+                        style={styles.useCoherentBtn}
+                        onPress={() => handleUseCoherentPhrase(activeCoherentMatch)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.useCoherentBtnText}>✨ Usar frase</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.speakCoherentBtn}
+                        onPress={() => handleSpeakCoherentPhrase(activeCoherentMatch)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.speakCoherentBtnText}>🔊 Leer en voz alta</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.videoCoherentBtn}
+                        onPress={() => handleOpenOfficialVideo(activeCoherentMatch)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.videoCoherentBtnText}>📹 Ver video oficial</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : null}
+</View>
             </View>
 
             {/* 5. Guía del Abecedario LESCO (Carrusel Rápido - SIN EMOJIS CONFUSOS) */}
@@ -1657,7 +1874,14 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
         )}
       </ScrollView>
 
-      {/* Modal de Detalle Anatómico Oficial */}
+      {/* Modal de Video Oficial LESCO */}
+        <LescoVideoModal
+          visible={!!activeOfficialVideo}
+          videoInfo={activeOfficialVideo}
+          onClose={() => setActiveOfficialVideo(null)}
+        />
+
+        {/* Modal de Detalle Anatómico Oficial */}
       {modalSign ? (
         <Modal
           visible={true}
@@ -2096,6 +2320,190 @@ const styles = StyleSheet.create({
   cursor: {
     color: '#B5551A',
     fontWeight: '900',
+  },
+  intelligenceHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  intelligenceBadgePill: {
+    backgroundColor: '#EBF2EB',
+    borderWidth: 1,
+    borderColor: '#5C7A5C',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: Radius.pill,
+  },
+  intelligenceBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#3E593E',
+    letterSpacing: 0.3,
+  },
+  prefixIndicatorText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5551A',
+    fontStyle: 'italic',
+  },
+  autocompleteLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#7A6E5C',
+    marginBottom: 4,
+  },
+  autocompleteScroll: {
+    paddingVertical: 2,
+    paddingRight: 10,
+    gap: 8,
+  },
+  autocompleteChip: {
+    backgroundColor: '#FAF7F2',
+    borderWidth: 1.5,
+    borderColor: '#EAE0D0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginRight: 6,
+    justifyContent: 'center',
+  },
+  autocompleteChipHighlight: {
+    backgroundColor: '#FFF5EB',
+    borderColor: '#B5551A',
+  },
+  autocompleteChipWord: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#2B241C',
+  },
+  autocompleteChipWordHighlight: {
+    color: '#B5551A',
+  },
+  autocompleteChipSub: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#7A6E5C',
+    marginTop: 1,
+  },
+  coherentPhraseBox: {
+    marginTop: 10,
+    backgroundColor: '#F6FAF6',
+    borderRadius: 14,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#C5DBC5',
+  },
+  coherentTopMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  coherentCatBadge: {
+    backgroundColor: '#5C7A5C',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.pill,
+  },
+  coherentCatBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  coherentConfidenceText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#3E593E',
+  },
+  coherentGlossText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#B5551A',
+    marginTop: 2,
+    marginBottom: 4,
+    letterSpacing: 0.3,
+  },
+  coherentSpanishSentence: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#2B241C',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  alternativesRow: {
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
+  altOptionPill: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#C5DBC5',
+    borderRadius: Radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 6,
+  },
+  altOptionPillActive: {
+    backgroundColor: '#3E593E',
+    borderColor: '#3E593E',
+  },
+  altOptionText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#3E593E',
+  },
+  altOptionTextActive: {
+    color: '#FFFFFF',
+  },
+  coherentActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  useCoherentBtn: {
+    flexGrow: 1,
+    backgroundColor: '#B5551A',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  useCoherentBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  speakCoherentBtn: {
+    flexGrow: 1,
+    backgroundColor: '#5C7A5C',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speakCoherentBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  videoCoherentBtn: {
+    flexGrow: 1,
+    backgroundColor: '#2B241C',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoCoherentBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
   keyboardControlsRow: {
     flexDirection: 'row',
