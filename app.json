@@ -7,11 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/LESCOnect-Logo-manos.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/LESCOnect-Logo-manos.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FBF6EE"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "cr.ac.utn.lesconect",

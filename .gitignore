@@ -47,6 +47,10 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
+# Expo
+.expo/
+.expo-shared/
+
 # Optional npm cache directory
 .npm
 
