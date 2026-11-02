@@ -14,11 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { CameraView, CameraType, useCameraPermissions } from '../components/CameraWrapper';
-import { detectHandNative, isNativeHandDetectorAvailable, getNativeHandDetectorLastError } from '../../../../modules/lesco-hand-detector';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 import { speechService } from '@/shared/utils/speech';
 import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
+import { detectHandNative, isNativeHandDetectorAvailable, getNativeHandDetectorLastError } from '../../../../modules/lesco-hand-detector';
+import { classifyWithKNN, isKNNModelAvailable } from '../services/lescoKNNClassifier';
 import { recognizeLescoSignFromBase64, recognizeDynamicLescoSign } from '../services/translatorService';
 import {
   analyzeLescoGrammarCoherence,
@@ -430,23 +431,6 @@ interface TrajectoryPoint {
   time: number;
 }
 
-function jointAngleDeg(
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-  c: { x: number; y: number }
-): number {
-  const v1x = a.x - b.x;
-  const v1y = a.y - b.y;
-  const v2x = c.x - b.x;
-  const v2y = c.y - b.y;
-  const dot = v1x * v2x + v1y * v2y;
-  const mag1 = Math.hypot(v1x, v1y);
-  const mag2 = Math.hypot(v2x, v2y);
-  if (mag1 < 1e-4 || mag2 < 1e-4) return 180;
-  const cosTheta = Math.max(-1, Math.min(1, dot / (mag1 * mag2)));
-  return (Math.acos(cosTheta) * 180) / Math.PI;
-}
-
 export function classifyLescoMotor3(
   landmarks: Array<{ x: number; y: number; z?: number }>,
   history: TrajectoryPoint[] = [],
@@ -454,83 +438,60 @@ export function classifyLescoMotor3(
 ): { letter: string; confidence: number; isDynamic?: boolean } | null {
   if (!landmarks || landmarks.length < 21) return null;
 
-  // ── ROTACIÓN CANÓNICA Y NORMALIZACIÓN DE ESCALA ───────────────────
-  // Alinea la mano verticalmente con muñeca en (0,0) y nudillo medio en (0, -1)
-  // para ser 100% inmune a si la persona sostiene el celular inclinado o en selfie
-  const wrist = landmarks[0];
-  const midMcp = landmarks[9];
-  const vx = midMcp.x - wrist.x;
-  const vy = midMcp.y - wrist.y;
-  const palmScale = Math.hypot(vx, vy);
-  if (palmScale < 0.03) return null;
+  // ── Escala de la mano ──────────────────────────────────────────────
+  const rawDist = (i: number, j: number) => {
+    const dx = landmarks[i].x - landmarks[j].x;
+    const dy = landmarks[i].y - landmarks[j].y;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
 
-  const palmAngle = Math.atan2(vy, vx);
-  const rot = -Math.PI / 2 - palmAngle;
-  const cosR = Math.cos(rot);
-  const sinR = Math.sin(rot);
+  const handScale = rawDist(0, 9);
+  if (handScale < 0.03) return null;
 
-  // Coordenadas canónicas
-  const c = landmarks.map((lm) => {
-    const dx = lm.x - wrist.x;
-    const dy = lm.y - wrist.y;
-    return {
-      x: (dx * cosR - dy * sinR) / palmScale,
-      y: (dx * sinR + dy * cosR) / palmScale,
-    };
-  });
+  const dist = (i: number, j: number) => rawDist(i, j) / handScale;
 
-  const cDist = (i: number, j: number) => Math.hypot(c[i].x - c[j].x, c[i].y - c[j].y);
+  // ── Estado de cada dedo ────────────────────────────────────────────
+  const isIndexExt    = dist(8, 0)  > dist(6, 0)  * 1.08 && landmarks[8].y  < landmarks[6].y;
+  const isIndexCurled = dist(8, 0)  < dist(6, 0)  * 1.05 || landmarks[8].y  >= landmarks[6].y;
+  const isMiddleExt   = dist(12, 0) > dist(10, 0) * 1.08 && landmarks[12].y < landmarks[10].y;
+  const isMiddleCurled= dist(12, 0) < dist(10, 0) * 1.05 || landmarks[12].y >= landmarks[10].y;
+  const isRingExt     = dist(16, 0) > dist(14, 0) * 1.08 && landmarks[16].y < landmarks[14].y;
+  const isRingCurled  = dist(16, 0) < dist(14, 0) * 1.05 || landmarks[16].y >= landmarks[14].y;
+  const isPinkyExt    = dist(20, 0) > dist(18, 0) * 1.08 && landmarks[20].y < landmarks[18].y;
+  const isPinkyCurled = dist(20, 0) < dist(18, 0) * 1.05 || landmarks[20].y >= landmarks[18].y;
 
-  // ── ÁNGULOS Y VECTORES ARTICULARES BIOMECÁNICOS ───────────────────
-  const angleIndexPIP  = jointAngleDeg(c[5], c[6], c[7]);
-  const angleMiddlePIP = jointAngleDeg(c[9], c[10], c[11]);
-  const angleRingPIP   = jointAngleDeg(c[13], c[14], c[15]);
-  const anglePinkyPIP  = jointAngleDeg(c[17], c[18], c[19]);
+  const isThumbOpenLateral     = dist(4, 5) > 0.46;
+  const isThumbUprightAlongIndex = dist(4, 5) < 0.52 && landmarks[4].y < landmarks[5].y;
+  const isThumbTuckedPalm      = dist(4, 9) < 0.46 || dist(4, 13) < 0.48;
 
-  // Dedos estirados vs doblados
-  const isIndexExt    = angleIndexPIP > 130 && c[8].y < c[6].y && c[8].y < -0.7;
-  const isIndexCurled = !isIndexExt;
+  const dThumbIndex  = dist(4, 8);
+  const dThumbMiddle = dist(4, 12);
+  const dIndexMiddle = dist(8, 12);
 
-  const isMiddleExt   = angleMiddlePIP > 130 && c[12].y < c[10].y && c[12].y < -0.7;
-  const isMiddleCurled= !isMiddleExt;
+  // ── Detección de trayectoria ───────────────────────────────────────
+  // Necesitamos suficiente historial y tiempo para señas dinámicas
+  const hasTraj = history.length >= 5;
 
-  const isRingExt     = angleRingPIP > 130 && c[16].y < c[14].y && c[16].y < -0.7;
-  const isRingCurled  = !isRingExt;
-
-  const isPinkyExt    = anglePinkyPIP > 120 && c[20].y < c[18].y && c[20].y < -0.65;
-  const isPinkyCurled = !isPinkyExt;
-
-  // Pulgar
-  const isThumbOpenLateral = cDist(4, 5) > 0.42 && cDist(4, 8) > 0.45;
-  const isThumbTuckedPalm  = cDist(4, 9) < 0.40 || cDist(4, 13) < 0.42;
-
-  const dThumbIndex  = cDist(4, 8);
-  const dThumbMiddle = cDist(4, 12);
-  const dIndexMiddle = cDist(8, 12);
-
-  // Vectores direccionales para índice y medio (para U vs V inmune a perspectiva)
-  const vIx = c[8].x - c[5].x;
-  const vIy = c[8].y - c[5].y;
-  const vMx = c[12].x - c[9].x;
-  const vMy = c[12].y - c[9].y;
-  const dotIM = vIx * vMx + vIy * vMy;
-  const magIM = Math.hypot(vIx, vIy) * Math.hypot(vMx, vMy);
-  const angleIndexMiddleDeg = magIM > 1e-4 ? (Math.acos(Math.max(-1, Math.min(1, dotIM / magIM))) * 180) / Math.PI : 0;
-
-  // ── SEÑAS DINÁMICAS LESCO (COSTA RICA) ─────────────────────────────
-  if (history && history.length >= 4) {
+  if (hasTraj) {
     const pts = history;
-    const n = pts.length;
+    const n   = pts.length;
     const start = pts[0];
-    const end = pts[n - 1];
+    const end   = pts[n - 1];
+    const mid   = pts[Math.floor(n / 2)];
 
-    const deltaX = end.x - start.x;
-    const deltaY = end.y - start.y;
-    const totalDist = Math.hypot(deltaX, deltaY);
+    const deltaX   = end.x - start.x;
+    const deltaY   = end.y - start.y;
+    const totalDist= Math.hypot(deltaX, deltaY);
 
+    // Velocidad (distancia / tiempo)
+    const dt = (pts[n - 1].time - pts[0].time) || 1;
+    const speed = totalDist / (dt / 1000); // unidades/segundo
+
+    // Cuánto ocupa el movimiento en X vs Y
     const horizRatio = Math.abs(deltaX) / (totalDist + 0.001);
-    const vertRatio = Math.abs(deltaY) / (totalDist + 0.001);
+    const vertRatio  = Math.abs(deltaY) / (totalDist + 0.001);
 
+    // Detección de zigzag (para Z, Ñ): cambios de dirección en X
     let dirChangesX = 0;
     for (let i = 2; i < n; i++) {
       const prevDx = pts[i - 1].x - pts[i - 2].x;
@@ -538,161 +499,151 @@ export function classifyLescoMotor3(
       if (prevDx * currDx < 0 && Math.abs(currDx) > 0.005) dirChangesX++;
     }
 
-    const isHandOpen = (isIndexExt && isMiddleExt && isRingExt) || (isIndexExt && isMiddleExt && isPinkyExt);
+    // Detección de círculo (para POR FAVOR): curvatura sostenida
+    const dx1 = mid.x - start.x;
+    const dy1 = mid.y - start.y;
+    const dx2 = end.x - mid.x;
+    const dy2 = end.y - mid.y;
+    const cross = dx1 * dy2 - dy1 * dx2; // positivo = giro sentido horario
+    const isCircular = Math.abs(cross) > 0.002 && totalDist < 0.08 && n >= 8;
 
-    // HOLA: Saludo LESCO de frente hacia adelante/abajo O movimiento lateral de palma
-    if (isHandOpen && totalDist > 0.04) {
-      const isForeheadForward = deltaY > 0.03;
-      const isWaving = dirChangesX >= 1 || Math.abs(deltaX) > 0.04;
-      if (isForeheadForward || isWaving) {
-        return { letter: 'HOLA', confidence: 98, isDynamic: true };
-      }
-    }
+    // ── SEÑAS DINÁMICAS — en orden de especificidad ──────────────────
 
-    // GRACIAS: mano abierta moviéndose hacia abajo/adelante desde el mentón
-    if (isHandOpen && deltaY > 0.05 && vertRatio > 0.5) {
+    // GRACIAS: mano abierta (≥3 dedos) moviéndose hacia abajo/frente desde mentón
+    // La cámara captura el movimiento hacia el observador como desplazamiento hacia abajo en Y
+    if (isIndexExt && isMiddleExt && isRingExt && speed > 0.04 && deltaY > 0.05) {
       return { letter: 'GRACIAS', confidence: 97, isDynamic: true };
     }
 
-    // SÍ: puño cerrado con movimiento vertical de asentimiento
-    if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled && Math.abs(deltaY) > 0.04 && vertRatio > 0.6) {
+    // HOLA: palma abierta (4 dedos) con cualquier movimiento lateral notable
+    if (isIndexExt && isMiddleExt && isRingExt && isPinkyExt && totalDist > 0.07 && horizRatio > 0.4) {
+      return { letter: 'HOLA', confidence: 97, isDynamic: true };
+    }
+
+    // SÍ: puño cerrado con movimiento vertical (arriba-abajo)
+    if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled
+        && speed > 0.05 && vertRatio > 0.6 && totalDist > 0.06) {
       return { letter: 'SÍ', confidence: 96, isDynamic: true };
     }
 
-    // NO: índice extendido con oscilación horizontal
-    if (isIndexExt && isMiddleCurled && (dirChangesX >= 1 || (Math.abs(deltaX) > 0.04 && horizRatio > 0.6))) {
-      return { letter: 'NO', confidence: 96, isDynamic: true };
+    // NO: pinza (índice + medio contra pulgar) con movimiento horizontal repetido
+    if (!isIndexExt && !isMiddleExt && dThumbIndex < 0.35
+        && speed > 0.04 && horizRatio > 0.6 && totalDist > 0.05) {
+      return { letter: 'NO', confidence: 95, isDynamic: true };
     }
 
-    // Z: índice extendido con zigzag horizontal
-    if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled && dirChangesX >= 2) {
-      return { letter: 'Z', confidence: 98, isDynamic: true };
+    // Z: solo índice extendido + zigzag en X (≥2 cambios de dirección)
+    if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled
+        && dirChangesX >= 2 && totalDist > 0.07) {
+      return { letter: 'Z', confidence: 97, isDynamic: true };
     }
 
-    // J: meñique extendido con curva hacia abajo
-    if (isPinkyExt && isIndexCurled && isMiddleCurled && isRingCurled && deltaY > 0.04) {
-      return { letter: 'J', confidence: 96, isDynamic: true };
+    // J: solo meñique extendido + movimiento curvo hacia abajo
+    if (isPinkyExt && isIndexCurled && isMiddleCurled && isRingCurled
+        && totalDist > 0.07 && deltaY > 0.04) {
+      return { letter: 'J', confidence: 95, isDynamic: true };
     }
 
-    // LL: L moviéndose horizontalmente
-    if (isIndexExt && isThumbOpenLateral && isMiddleCurled && (Math.abs(deltaX) > 0.05 && horizRatio > 0.6)) {
+    // LL: L (índice + pulgar) moviéndose horizontalmente
+    if (isIndexExt && isThumbOpenLateral && isMiddleCurled
+        && horizRatio > 0.55 && totalDist > 0.07) {
       return { letter: 'LL', confidence: 97, isDynamic: true };
     }
 
-    // RR: R moviéndose lateralmente
-    if (isIndexExt && isMiddleExt && dIndexMiddle < 0.22 && (Math.abs(deltaX) > 0.05 && horizRatio > 0.5)) {
+    // RR: R (índice+medio juntos cruzados) moviéndose lateralmente
+    if (isIndexExt && isMiddleExt && dIndexMiddle < 0.22
+        && horizRatio > 0.5 && totalDist > 0.07) {
       return { letter: 'RR', confidence: 96, isDynamic: true };
     }
-  }
 
-  // ── DESEMPATE CRÍTICO BIOMECÁNICO (O vs Y, U vs V, etc.) ───────────
-
-  // 1. O: Pulgar e índice tocándose o convergiendo en círculo
-  // (Inmune a que se confunda con Y porque en O, dThumbIndex es pequeño y no hay shaka)
-  const isCircleO = dThumbIndex < 0.38 && isIndexCurled && isMiddleCurled;
-  if (isCircleO) {
-    return { letter: 'O', confidence: 99 };
-  }
-
-  // 2. Y: Pulgar y meñique estirados hacia los lados ('shaka'), dedos 2, 3, 4 cerrados
-  // Exige explícitamente que el pulgar esté LEJOS del índice (dThumbIndex > 0.48)
-  if (isPinkyExt && isThumbOpenLateral && isIndexCurled && isMiddleCurled && isRingCurled && dThumbIndex > 0.48) {
-    return { letter: 'Y', confidence: 99 };
-  }
-
-  // 3. U vs V: Índice y medio estirados hacia arriba, anular y meñique doblados
-  if (isIndexExt && isMiddleExt && isRingCurled && isPinkyCurled) {
-    // Si los dedos divergen en ángulo >= 13.5° o están notablemente separados -> V
-    if (angleIndexMiddleDeg >= 13.5 || dIndexMiddle > 0.34) {
-      return { letter: 'V', confidence: 99 };
+    // Ñ: puño cerrado con 1-2 sacudidas horizontales (zigzag suave)
+    if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled
+        && dirChangesX >= 1 && horizRatio > 0.5 && totalDist > 0.05) {
+      return { letter: 'Ñ', confidence: 95, isDynamic: true };
     }
-    // Si los dedos están juntos y paralelos (ángulo < 13.5°) -> U
-    return { letter: 'U', confidence: 98 };
+
+    // POR FAVOR: movimiento circular con palma plana
+    if (isCircular && isIndexExt && isMiddleExt && isRingExt && isPinkyExt) {
+      return { letter: 'POR FAVOR', confidence: 94, isDynamic: true };
+    }
+
+    // DOS MANOS detectadas simultáneamente → GRACIAS como señal de doble mano
+    if (numHands >= 2) {
+      return { letter: 'GRACIAS', confidence: 99, isDynamic: true };
+    }
   }
 
-  // 4. L: Solo índice vertical hacia arriba y pulgar abierto a 90° lateral
+  // ── SEÑAS ESTÁTICAS ────────────────────────────────────────────────
+  // Orden: de más específica a menos específica
+
   if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled && isThumbOpenLateral) {
     return { letter: 'L', confidence: 99 };
   }
-
-  // 5. I: Solo meñique estirado hacia arriba
   if (!isIndexExt && isMiddleCurled && isRingCurled && isPinkyExt && !isThumbOpenLateral) {
     return { letter: 'I', confidence: 98 };
   }
-
-  // 6. W: Índice, medio y anular estirados hacia arriba
+  if (isPinkyExt && isThumbOpenLateral && isIndexCurled && isMiddleCurled && isRingCurled) {
+    return { letter: 'Y', confidence: 99 };
+  }
+  if (isIndexExt && isMiddleExt && isRingCurled && isPinkyCurled && dIndexMiddle > 0.32) {
+    return { letter: 'V', confidence: 99 };
+  }
+  if (isIndexExt && isMiddleExt && isRingCurled && isPinkyCurled && dIndexMiddle <= 0.32) {
+    return { letter: 'U', confidence: 97 };
+  }
   if (isIndexExt && isMiddleExt && isRingExt && isPinkyCurled) {
     return { letter: 'W', confidence: 98 };
   }
-
-  // 7. B: Cuatro dedos estirados juntos hacia arriba, pulgar doblado sobre palma
+  if (dThumbIndex < 0.30 && isMiddleExt && isRingExt && isPinkyExt) {
+    return { letter: 'F', confidence: 98 };
+  }
   if (isIndexExt && isMiddleExt && isRingExt && isPinkyExt && !isThumbOpenLateral) {
     return { letter: 'B', confidence: 99 };
   }
-
-  // 8. D: Solo índice estirado vertical, medio toca el pulgar formando círculo
-  if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled && dThumbMiddle < 0.45) {
-    return { letter: 'D', confidence: 97 };
+  if (isIndexExt && isMiddleCurled && isRingCurled && isPinkyCurled && dThumbMiddle < 0.40) {
+    return { letter: 'D', confidence: 96 };
   }
-
-  // 9. F: Pulgar e índice en círculo, medio, anular y meñique estirados
-  if (dThumbIndex < 0.35 && isMiddleExt && isRingExt && isPinkyExt) {
-    return { letter: 'F', confidence: 98 };
+  if (isIndexCurled && isMiddleCurled && dThumbIndex < 0.30 && dThumbMiddle < 0.32) {
+    return { letter: 'O', confidence: 98 };
   }
-
-  // 10. C: Mano curvada en silueta de C
-  if (!isIndexExt && !isMiddleExt && dThumbIndex >= 0.38 && dThumbIndex <= 0.85 && !isPinkyExt) {
+  if (!isIndexExt && !isMiddleExt && dThumbIndex >= 0.32 && dThumbIndex <= 0.90) {
     return { letter: 'C', confidence: 96 };
   }
-
-  // 11. Puños cerrados: A, S, E
-  if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled) {
-    // S: pulgar cruzado por delante de los dedos sobre la palma
-    if (isThumbTuckedPalm) {
-      return { letter: 'S', confidence: 97 };
-    }
-    // E: puntas de los 4 dedos descansan sobre el borde horizontal del pulgar
-    if (dThumbIndex < 0.28 && dThumbMiddle < 0.30) {
-      return { letter: 'E', confidence: 95 };
-    }
-    // A: puño cerrado con el pulgar erguido descansando al lado del índice
-    return { letter: 'A', confidence: 98 };
+  if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled && isThumbUprightAlongIndex) {
+    return { letter: 'A', confidence: 97 };
   }
-
-  // 12. R: Índice y medio cruzados
-  if (isIndexExt && isMiddleExt && dIndexMiddle < 0.20 && !isRingExt) {
+  if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled && dThumbIndex < 0.35) {
+    return { letter: 'E', confidence: 95 };
+  }
+  if (isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled && isThumbTuckedPalm) {
+    return { letter: 'S', confidence: 96 };
+  }
+  if (isIndexExt && isMiddleExt && dIndexMiddle < 0.22 && !isRingExt) {
     return { letter: 'R', confidence: 96 };
   }
-
-  // 13. K: Índice y medio arriba con pulgar entre ellos
   if (isIndexExt && isMiddleExt && dThumbMiddle < 0.38) {
     return { letter: 'K', confidence: 95 };
   }
-
-  // 14. X: Índice flexionado en gancho
   if (!isIndexExt && !isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled) {
     return { letter: 'X', confidence: 94 };
   }
-
-  // 15. N / M: Dedos doblados hacia abajo sobre el pulgar
-  if (isIndexCurled && isMiddleCurled && c[8].y > c[5].y) {
-    if (isRingCurled && c[16].y > c[13].y) return { letter: 'M', confidence: 94 };
+  if (isIndexCurled && isMiddleCurled && landmarks[8].y > landmarks[5].y) {
+    if (isRingCurled && landmarks[16].y > landmarks[13].y) return { letter: 'M', confidence: 94 };
     return { letter: 'N', confidence: 94 };
   }
 
   // ── MODELO ESTADÍSTICO CENAREC KNN (6,941 muestras reales) ────────
   try {
     if (isKNNModelAvailable()) {
-      const knn = classifyWithKNN(landmarks.map((l) => ({ x: l.x, y: l.y })));
+      const knn = classifyWithKNN(landmarks.map((l: any) => ({ x: l.x, y: l.y })));
       if (knn && knn.letter && knn.confidence >= 65) {
-        // Validación de coherencia biomecánica sobre la sugerencia KNN
         if (knn.letter === 'U' || knn.letter === 'V') {
-          return { letter: angleIndexMiddleDeg >= 13.5 ? 'V' : 'U', confidence: 98 };
+          return { letter: dIndexMiddle < 0.35 ? 'U' : 'V', confidence: 98 };
         }
-        if (knn.letter === 'O' && isCircleO) {
+        if (knn.letter === 'O' && dThumbIndex < 0.38) {
           return { letter: 'O', confidence: 99 };
         }
-        if (knn.letter === 'Y' && !isCircleO && isPinkyExt) {
+        if (knn.letter === 'Y' && isPinkyExt && isThumbOpenLateral) {
           return { letter: 'Y', confidence: 99 };
         }
         return { letter: knn.letter, confidence: Math.max(90, knn.confidence) };
@@ -700,31 +651,8 @@ export function classifyLescoMotor3(
     }
   } catch (_err) {}
 
-      // ── FALLBACK A MODELO ENTRENADO DACTILOLÓGICO BAYESIANO ─────────
-    try {
-      const trained = classifyTrainedAlphabetLesco(landmarks as any);
-      if (trained && trained.confidence >= 60) {
-        if (trained.letter === 'U' || trained.letter === 'V') {
-          return { letter: angleIndexMiddleDeg >= 13.5 ? 'V' : 'U', confidence: 98 };
-        }
-        if (trained.letter === 'O' && isCircleO) {
-          return { letter: 'O', confidence: 99 };
-        }
-        if (trained.letter === 'Y' && !isCircleO && isPinkyExt) {
-          return { letter: 'Y', confidence: 99 };
-        }
-        return {
-          letter: trained.letter,
-          confidence: Math.round(trained.confidence * 100),
-          isDynamic: trained.isDynamic,
-        };
-      }
-    } catch (_err) {}
-
-    return null;
+  return null;
 }
-
-
 
 // Plantillas de visualización
 export function getLescoLandmarkTemplate(sign: string): Array<{ x: number; y: number }> {
@@ -856,13 +784,11 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   const router = useRouter();
 
   const cameraRef = useRef<any>(null);
-  const engineMode = 'local' as const; // Motor local KNN exclusivo — Gemini eliminado
   const [facing, setFacing] = useState<CameraType>('front');
   const [permission, requestPermission] = useCameraPermissions();
 
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const isProcessingRef = useRef<boolean>(false);
-  const isProcessingLocalRef = useRef<boolean>(false);
   const lastAddedSignRef = useRef<string>('');
   const noHandCounterRef = useRef<number>(0);
 
@@ -871,35 +797,13 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   const [activeTab, setActiveTab] = useState<'detector' | 'dictionary'>('detector');
   const [dictFilter, setDictFilter] = useState<'todos' | 'alfabeto' | 'palabra'>('todos');
   const [isCameraActive, setIsCameraActive] = useState<boolean>(true);
-  const [cameraStatus, setCameraStatus] = useState<string>('⚡ Traductor LESCO (Local) Activo — Haz tu seña');
+  const [cameraStatus, setCameraStatus] = useState<string>('⚡ Traductor LESCO Activo — Haz tu seña');
   const [detectedSign, setDetectedSign] = useState<string>('—');
   const [confidence, setConfidence] = useState<number>(0);
   const [isHandPresent, setIsHandPresent] = useState<boolean>(false);
   const [realLandmarks, setRealLandmarks] = useState<Array<{ x: number; y: number }>>([]);
   const [wordBuffer, setWordBuffer] = useState<string>('');
   const [modalSign, setModalSign] = useState<LescoSignItem | null>(null);
-  const [activeOfficialVideo, setActiveOfficialVideo] = useState<LescoVideoInfo | null>(null);
-  const [selectedMatchR2Key, setSelectedMatchR2Key] = useState<string | null>(null);
-
-  // Motor de Inteligencia LESCO y Coherencia Gramatical (CENAREC + 54 videos oficiales)
-  const coherenceAnalysis = useMemo(
-    () => analyzeLescoGrammarCoherence(wordBuffer),
-    [wordBuffer]
-  );
-
-  const allCoherentMatches = useMemo(() => {
-    if (!coherenceAnalysis.primaryMatch) return [];
-    return [coherenceAnalysis.primaryMatch, ...coherenceAnalysis.alternatives];
-  }, [coherenceAnalysis]);
-
-  const activeCoherentMatch: LescoCoherentPhraseMatch | null = useMemo(() => {
-    if (allCoherentMatches.length === 0) return null;
-    if (selectedMatchR2Key) {
-      const found = allCoherentMatches.find((m) => m.r2Key === selectedMatchR2Key);
-      if (found) return found;
-    }
-    return allCoherentMatches[0];
-  }, [allCoherentMatches, selectedMatchR2Key]);
   const [autoAddEnabled, setAutoAddEnabled] = useState<boolean>(true);
   const [holdProgress, setHoldProgress] = useState<number>(0);
   const [activeOfficialVideo, setActiveOfficialVideo] = useState<LescoVideoInfo | null>(null);
@@ -957,12 +861,7 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   const frameBufferRef = useRef<string[]>([]);
   // Cuántas fotos seguidas no se detectó seña → trigger burst dinámico
   const noSignCountRef = useRef<number>(0);
-  const localFrameCountRef = useRef<number>(0);
 
-  // ── Motor Gemini (cloud) eliminado. Todo el reconocimiento va por el loop local KNN abajo. ──
-
-
-  // ── LOOP NATIVO LESCO (100% Offline con MediaPipe SDK en Kotlin) ──────────
   useEffect(() => {
     if (
       Platform.OS === 'web' ||
@@ -974,14 +873,10 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
     }
 
     let isMounted = true;
-    let loopId: ReturnType<typeof setTimeout>;
 
-    const runNativeLocalLoop = async () => {
-      if (!isMounted) return;
-      if (isProcessingLocalRef.current) {
-        if (isMounted) loopId = setTimeout(runNativeLocalLoop, 80);
-        return;
-      }
+        // ── LOOP HÍBRIDO ULTRA FLUIDO (MediaPipe Nativo Offline + Anti-Parpadeo) ──
+    const runNativeHybridLoop = async () => {
+      await new Promise((r) => setTimeout(r, 600));
 
       while (isMounted) {
         if (
@@ -994,110 +889,114 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
             isProcessingRef.current = true;
             setIsScanning(true);
 
-          if (photo?.base64 && isMounted) {
-            const result = await detectHandNative(photo.base64, facing);
+            const photo = await cameraRef.current.takePictureAsync({
+              base64: true,
+              quality: 0.15,
+              shutterSound: false,
+              skipProcessing: true,
+            });
 
-            if (result.error) {
-              setCameraStatus(`⚠️ ${result.error}`);
-            } else if (result.detected && result.landmarks && result.landmarks.length >= 21 && isMounted) {
-              noHandCounterRef.current = 0;
-              setIsHandPresent(true);
+            if (photo?.base64 && isMounted) {
+              let recognizedLetter = '';
+              let recognizedConfidence = 0;
+              let recognizedLandmarks: any[] = [];
 
-              const rawLandmarks = result.landmarks.map((lm) => ({ x: lm.x, y: lm.y }));
-              setRealLandmarks(rawLandmarks);
+              // 1) Intentar primero con MediaPipe Nativo 100% Offline
+              if (isNativeHandDetectorAvailable()) {
+                try {
+                  const nativeRes = await detectHandNative(photo.base64, facing);
+                  if (nativeRes.detected && nativeRes.landmarks && nativeRes.landmarks.length >= 21) {
+                    const lms = nativeRes.landmarks.map((lm: any) => ({ x: lm.x, y: lm.y }));
+                    recognizedLandmarks = lms;
 
-              const wrist = rawLandmarks[0];
-              const now = Date.now();
-              trajectoryBufferRef.current.push({ x: wrist.x, y: wrist.y, time: now });
-              if (trajectoryBufferRef.current.length > 10) trajectoryBufferRef.current.shift();
+                    const wrist = lms[0];
+                    const now = Date.now();
+                    trajectoryBufferRef.current.push({ x: wrist.x, y: wrist.y, time: now });
+                    if (trajectoryBufferRef.current.length > 12) trajectoryBufferRef.current.shift();
 
-              const classification = classifyLescoMotor3(
-                rawLandmarks,
-                trajectoryBufferRef.current,
-                result.handsCount ?? 1
-              );
-
-              if (classification && classification.letter && classification.letter !== '?') {
-                // Respuesta visual inmediata (feedback instantáneo en el badge y preview)
-                setDetectedSign(classification.letter);
-                setConfidence(classification.confidence);
-
-                voteBufferRef.current.push(classification.letter);
-                if (voteBufferRef.current.length > 4) voteBufferRef.current.shift();
-
-                // Conteo de votos en la ventana móvil
-                const counts: Record<string, number> = {};
-                let maxSign = '';
-                let maxCount = 0;
-                for (const sign of voteBufferRef.current) {
-                  counts[sign] = (counts[sign] || 0) + 1;
-                  if (counts[sign] > maxCount) {
-                    maxCount = counts[sign];
-                    maxSign = sign;
+                    let cl = classifyLescoMotor3(lms, trajectoryBufferRef.current, 1);
+                    if (!cl) {
+                      const tr = classifyTrainedAlphabetLesco(nativeRes.landmarks as any);
+                      if (tr) {
+                        cl = { letter: tr.letter, confidence: Math.round(tr.confidence * 100), isDynamic: tr.isDynamic };
+                      }
+                    }
+                    if (cl && cl.letter) {
+                      recognizedLetter = cl.letter;
+                      recognizedConfidence = cl.confidence;
+                    }
                   }
+                } catch (_e) {}
+              }
+
+              // 2) Fallback si MediaPipe no detectó postura
+              if (!recognizedLetter && photo.base64) {
+                setCameraStatus('🔍 Analizando postura LESCO...');
+                const geminiRes = await recognizeLescoSignFromBase64(photo.base64);
+                if (geminiRes.detected && geminiRes.letter) {
+                  recognizedLetter = geminiRes.letter;
+                  recognizedConfidence = geminiRes.confidence || 95;
+                  recognizedLandmarks = getLescoLandmarkTemplate(geminiRes.letter);
+                }
+              }
+
+              if (recognizedLetter && isMounted) {
+                noHandCounterRef.current = 0;
+                setIsHandPresent(true);
+                setDetectedSign(recognizedLetter);
+                setConfidence(recognizedConfidence || 95);
+                if (recognizedLandmarks.length > 0) {
+                  setRealLandmarks(recognizedLandmarks);
                 }
 
-                const isDynamic = classification.isDynamic;
-                const canWriteDynamic = isDynamic && (now - lastAddedTimeRef.current >= 800);
-                const canWriteStatic = maxCount >= 3 && (now - lastAddedTimeRef.current >= 950);
-
-                if (canWriteDynamic || canWriteStatic) {
-                  const targetSign = isDynamic ? classification.letter : maxSign;
+                const now = Date.now();
+                if ((now - lastAddedTimeRef.current) >= 1400) {
                   haptics.success();
                   if (autoAddEnabled) {
                     setWordBuffer((prev) => {
-                      const needsSpace =
-                        prev.length > 0 && !prev.endsWith(' ') && targetSign.length > 1;
-                      return needsSpace ? prev + ' ' + targetSign : prev + targetSign;
+                      const needsSpace = prev.length > 0 && !prev.endsWith(' ') && recognizedLetter.length > 1;
+                      return needsSpace ? prev + ' ' + recognizedLetter : prev + recognizedLetter;
                     });
-                    setCameraStatus(`✅ ¡'${targetSign}' escrita! (${classification.confidence}%)`);
+                    setCameraStatus(`✅ ¡'${recognizedLetter}' escrita! (${recognizedConfidence}%)`);
                   } else {
-                    setCameraStatus(`✅ Detectada '${targetSign}' (${classification.confidence}%)`);
+                    setCameraStatus(`✅ Detectada '${recognizedLetter}' (${recognizedConfidence}%)`);
                   }
                   lastAddedTimeRef.current = now;
-                  lastAddedSignRef.current = targetSign;
-                  voteBufferRef.current = [];
+                  lastAddedSignRef.current = recognizedLetter;
                 } else {
-                  setCameraStatus(`⚡ Seña: '${classification.letter}' (${classification.confidence}%)`);
+                  const remaining = Math.ceil((1400 - (now - lastAddedTimeRef.current)) / 1000);
+                  setCameraStatus(`👁 '${recognizedLetter}' lista — espera ${remaining}s`);
                 }
-              } else {
-                if (voteBufferRef.current.length > 0) {
-                  voteBufferRef.current.shift();
-                }
-                setCameraStatus('⚡ Mano detectada — Realiza tu seña');
+              } else if (isMounted) {
+                setIsHandPresent(false);
+                setDetectedSign('—');
+                setConfidence(0);
+                setRealLandmarks([]);
+                setCameraStatus('Muestra tu mano claramente frente a la cámara');
               }
-            } else if (isMounted) {
-              setIsHandPresent(false);
-              setDetectedSign('—');
-              setConfidence(0);
-              setRealLandmarks([]);
-              localFrameCountRef.current = (localFrameCountRef.current || 0) + 1;
-              setCameraStatus('⚡ Muestra tu mano frente a la cámara');
+            }
+          } catch (err: any) {
+            if (isMounted) setCameraStatus(`⚠️ ${err?.message ?? 'Verificando cámara...'}`);
+          } finally {
+            if (isMounted) {
+              setIsScanning(false);
+              isProcessingRef.current = false;
             }
           }
         }
-      } catch (err: any) {
-        if (isMounted) {
-          setCameraStatus(`⚠️ Error Local: ${err?.message ?? 'captura'}`);
-        }
-      } finally {
-        isProcessingLocalRef.current = false;
-      }
-
-      if (isMounted && engineMode === 'local') {
-        loopId = setTimeout(runNativeLocalLoop, 120); // 120ms = ~8 FPS ultra fluido y rápido
+        await new Promise((r) => setTimeout(r, 650));
       }
     };
 
-    loopId = setTimeout(runNativeLocalLoop, 300);
+    runNativeHybridLoop();
 
     return () => {
       isMounted = false;
-      isProcessingLocalRef.current = false;
-      clearTimeout(loopId);
+      isProcessingRef.current = false;
     };
   }, [isCameraActive, activeTab, permission?.granted, autoAddEnabled]);
 
+  // Cargar MediaPipe Hands en Web Browser
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
@@ -1391,31 +1290,6 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
     setWordBuffer('');
   };
 
-  const handleSelectWordSuggestion = (suggestion: LescoWordSuggestion) => {
-    haptics.success();
-    setSelectedMatchR2Key(null);
-    setWordBuffer((prev) => applyWordSuggestionToBuffer(prev, suggestion));
-  };
-
-  const handleUseCoherentPhrase = (match: LescoCoherentPhraseMatch) => {
-    haptics.success();
-    setWordBuffer(match.phraseEs);
-  };
-
-  const handleSpeakCoherentPhrase = (match: LescoCoherentPhraseMatch) => {
-    haptics.medium();
-    speechService.speak(match.phraseEs);
-  };
-
-  const handleOpenOfficialVideo = (match: LescoCoherentPhraseMatch) => {
-    haptics.medium();
-    setActiveOfficialVideo({
-      title: match.phraseEs,
-      category: match.categoryLabel,
-      glossText: match.lescoGloss,
-    });
-  };
-
   const handleSpeak = () => {
     haptics.light();
     if (wordBuffer.trim().length > 0) {
@@ -1579,22 +1453,15 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                 )
               ) : null}
 
-              {/* Botones de Control Flotantes en Cámara */}
+              {/* Botón Girar Cámara Flotante Sutil */}
               {Platform.OS !== 'web' && permission?.granted && isCameraActive ? (
-                <View style={styles.camTopActions}>
-                  {/* Badge ⚡ Local — motor KNN offline siempre activo */}
-                  <View style={[styles.engineToggleBtn, styles.engineToggleBtnLocal]}>
-                    <Text style={styles.engineToggleBtnText}>⚡ Local</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.flipCamBtn}
-                    onPress={toggleCameraFacing}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.flipCamBtnText}>🔄 {facing === 'front' ? 'Trasera' : 'Frontal'}</Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={styles.flipCamBtn}
+                  onPress={toggleCameraFacing}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.flipCamBtnText}>🔄 {facing === 'front' ? 'Trasera' : 'Frontal'}</Text>
+                </TouchableOpacity>
               ) : null}
 
               {/* Indicador de Estado Visual y Discreto */}
@@ -1710,147 +1577,7 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                 >
                   <Text style={styles.keyActionText}>🗑️</Text>
                 </TouchableOpacity>
-              
-
-                {/* ── BARRA DE INTELIGENCIA LESCO & AUTOCOMPLETADO (1-TOQUE) ── */}
-                <View style={styles.intelligenceHeaderRow}>
-                  <View style={styles.intelligenceBadgePill}>
-                    <Text style={styles.intelligenceBadgeText}>
-                      🧠 INTELIGENCIA LESCO • CENAREC + 54 VIDEOS
-                    </Text>
-                  </View>
-                  {coherenceAnalysis.activePrefix ? (
-                    <Text style={styles.prefixIndicatorText}>
-                      Deletreando: "{coherenceAnalysis.activePrefix}..."
-                    </Text>
-                  ) : null}
-                </View>
-
-                {/* Chips de Autocompletado */}
-                <Text style={styles.autocompleteLabel}>
-                  {coherenceAnalysis.activePrefix
-                    ? '⚡ Completa la palabra con 1 toque:'
-                    : wordBuffer.trim().length > 0
-                    ? '🤟 Siguiente seña sugerida (Orden LESCO):'
-                    : '🤟 Señas frecuentes o empieza a deletrear:'}
-                </Text>
-
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.autocompleteScroll}
-                >
-                  {coherenceAnalysis.wordSuggestions.map((sug) => (
-                    <TouchableOpacity
-                      key={`${sug.word}-${sug.matchedPrefix}`}
-                      style={[
-                        styles.autocompleteChip,
-                        !sug.isNextWordPrediction && styles.autocompleteChipHighlight,
-                      ]}
-                      onPress={() => handleSelectWordSuggestion(sug)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Completar palabra ${sug.word}`}
-                    >
-                      <Text
-                        style={[
-                          styles.autocompleteChipWord,
-                          !sug.isNextWordPrediction && styles.autocompleteChipWordHighlight,
-                        ]}
-                      >
-                        {sug.isNextWordPrediction ? `+ ${sug.word}` : `✨ ${sug.word}`}
-                      </Text>
-                      <Text style={styles.autocompleteChipSub}>{sug.categoryLabel}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-
-                {/* Frase Coherente Sugerida (Español Natural + Video Oficial) */}
-                {activeCoherentMatch ? (
-                  <View style={styles.coherentPhraseBox}>
-                    <View style={styles.coherentTopMetaRow}>
-                      <View style={styles.coherentCatBadge}>
-                        <Text style={styles.coherentCatBadgeText}>
-                          {activeCoherentMatch.categoryLabel}
-                        </Text>
-                      </View>
-                      <Text style={styles.coherentConfidenceText}>
-                        {activeCoherentMatch.confidence}% coherencia
-                      </Text>
-                    </View>
-
-                    <Text style={styles.coherentGlossText}>
-                      Glosa LESCO: {activeCoherentMatch.lescoGloss}
-                    </Text>
-
-                    <Text style={styles.coherentSpanishSentence}>
-                      “{activeCoherentMatch.phraseEs}”
-                    </Text>
-
-                    {allCoherentMatches.length > 1 ? (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.alternativesRow}
-                      >
-                        {allCoherentMatches.map((altMatch, idx) => {
-                          const isSelected = altMatch.r2Key === activeCoherentMatch.r2Key;
-                          return (
-                            <TouchableOpacity
-                              key={altMatch.r2Key}
-                              style={[
-                                styles.altOptionPill,
-                                isSelected && styles.altOptionPillActive,
-                              ]}
-                              onPress={() => {
-                                haptics.light();
-                                setSelectedMatchR2Key(altMatch.r2Key);
-                              }}
-                              activeOpacity={0.75}
-                            >
-                              <Text
-                                style={[
-                                  styles.altOptionText,
-                                  isSelected && styles.altOptionTextActive,
-                                ]}
-                                numberOfLines={1}
-                              >
-                                Opción {idx + 1}: {altMatch.categoryLabel}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </ScrollView>
-                    ) : null}
-
-                    <View style={styles.coherentActionsRow}>
-                      <TouchableOpacity
-                        style={styles.useCoherentBtn}
-                        onPress={() => handleUseCoherentPhrase(activeCoherentMatch)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.useCoherentBtnText}>✨ Usar frase</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.speakCoherentBtn}
-                        onPress={() => handleSpeakCoherentPhrase(activeCoherentMatch)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.speakCoherentBtnText}>🔊 Leer en voz alta</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.videoCoherentBtn}
-                        onPress={() => handleOpenOfficialVideo(activeCoherentMatch)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.videoCoherentBtnText}>📹 Ver video oficial</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : null}
-</View>
+              </View>
             </View>
 
             {/* 4.5 Barra de Inteligencia LESCO y Coherencia de Frases (Corpus Oficial 54 Videos) */}
@@ -2170,14 +1897,7 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
         )}
       </ScrollView>
 
-      {/* Modal de Video Oficial LESCO */}
-        <LescoVideoModal
-          visible={!!activeOfficialVideo}
-          videoInfo={activeOfficialVideo}
-          onClose={() => setActiveOfficialVideo(null)}
-        />
-
-        {/* Modal de Detalle Anatómico Oficial */}
+      {/* Modal de Detalle Anatómico Oficial */}
       {modalSign ? (
         <Modal
           visible={true}
@@ -2427,41 +2147,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
-  camTopActions: {
+  flipCamBtn: {
     position: 'absolute',
     top: 10,
     right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    zIndex: 30,
-  },
-  engineToggleBtn: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-  },
-  engineToggleBtnLocal: {
-    backgroundColor: 'rgba(46, 204, 113, 0.90)',
-    borderColor: '#2ECC71',
-  },
-  engineToggleBtnCloud: {
-    backgroundColor: 'rgba(52, 152, 219, 0.90)',
-    borderColor: '#3498DB',
-  },
-  engineToggleBtnText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  flipCamBtn: {
     backgroundColor: 'rgba(20, 15, 10, 0.75)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Radius.pill,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.25)',
+    zIndex: 30,
   },
   flipCamBtnText: {
     color: '#FFFFFF',
@@ -2631,190 +2327,6 @@ const styles = StyleSheet.create({
   cursor: {
     color: '#B5551A',
     fontWeight: '900',
-  },
-  intelligenceHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 6,
-  },
-  intelligenceBadgePill: {
-    backgroundColor: '#EBF2EB',
-    borderWidth: 1,
-    borderColor: '#5C7A5C',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: Radius.pill,
-  },
-  intelligenceBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#3E593E',
-    letterSpacing: 0.3,
-  },
-  prefixIndicatorText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#B5551A',
-    fontStyle: 'italic',
-  },
-  autocompleteLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#7A6E5C',
-    marginBottom: 4,
-  },
-  autocompleteScroll: {
-    paddingVertical: 2,
-    paddingRight: 10,
-    gap: 8,
-  },
-  autocompleteChip: {
-    backgroundColor: '#FAF7F2',
-    borderWidth: 1.5,
-    borderColor: '#EAE0D0',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    marginRight: 6,
-    justifyContent: 'center',
-  },
-  autocompleteChipHighlight: {
-    backgroundColor: '#FFF5EB',
-    borderColor: '#B5551A',
-  },
-  autocompleteChipWord: {
-    fontSize: 12.5,
-    fontWeight: '900',
-    color: '#2B241C',
-  },
-  autocompleteChipWordHighlight: {
-    color: '#B5551A',
-  },
-  autocompleteChipSub: {
-    fontSize: 9.5,
-    fontWeight: '600',
-    color: '#7A6E5C',
-    marginTop: 1,
-  },
-  coherentPhraseBox: {
-    marginTop: 10,
-    backgroundColor: '#F6FAF6',
-    borderRadius: 14,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: '#C5DBC5',
-  },
-  coherentTopMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  coherentCatBadge: {
-    backgroundColor: '#5C7A5C',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.pill,
-  },
-  coherentCatBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  coherentConfidenceText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#3E593E',
-  },
-  coherentGlossText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#B5551A',
-    marginTop: 2,
-    marginBottom: 4,
-    letterSpacing: 0.3,
-  },
-  coherentSpanishSentence: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#2B241C',
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  alternativesRow: {
-    paddingVertical: 4,
-    marginBottom: 8,
-  },
-  altOptionPill: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#C5DBC5',
-    borderRadius: Radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginRight: 6,
-  },
-  altOptionPillActive: {
-    backgroundColor: '#3E593E',
-    borderColor: '#3E593E',
-  },
-  altOptionText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#3E593E',
-  },
-  altOptionTextActive: {
-    color: '#FFFFFF',
-  },
-  coherentActionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 2,
-  },
-  useCoherentBtn: {
-    flexGrow: 1,
-    backgroundColor: '#B5551A',
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  useCoherentBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  speakCoherentBtn: {
-    flexGrow: 1,
-    backgroundColor: '#5C7A5C',
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  speakCoherentBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  videoCoherentBtn: {
-    flexGrow: 1,
-    backgroundColor: '#2B241C',
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  videoCoherentBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
   },
   keyboardControlsRow: {
     flexDirection: 'row',

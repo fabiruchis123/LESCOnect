@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { BrandLogo } from './BrandLogo';
