@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "package": "cr.ac.utn.lesconect",
+      "package": "com.lesconect.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#FBF6EE",
@@ -57,6 +57,8 @@
           "cameraPermission": "Permite a LESCOnect acceder a la cámara para traducir señas dactilológicas en tiempo real."
         }
       ],
+      "expo-video",
+      "./plugins/withLescoHandDetector",
       [
         "expo-location",
         {
@@ -69,6 +71,19 @@
           "contactsPermission": "Permite a LESCOnect seleccionar contactos de tu agenda para agregarlos a tu red de auxilio SOS."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "792f4736-1b3a-409a-a4b1-88ee9521d29a"
+      }
+    },
+    "owner": "pleivaz",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/792f4736-1b3a-409a-a4b1-88ee9521d29a"
+    }
   }
 }
