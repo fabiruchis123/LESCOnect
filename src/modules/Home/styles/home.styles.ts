@@ -207,6 +207,22 @@ export const styles = StyleSheet.create({
     fontSize: Typography.sizes.md,
     fontWeight: Typography.weights.black,
   },
+  heroActionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  heroTutorialBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  heroTutorialIcon: {
+    fontSize: 14,
+  },
 
   // Emergencias Banner (Coral)
   emergencyBanner: {
@@ -238,6 +254,10 @@ export const styles = StyleSheet.create({
   emergencyEmoji: {
     fontSize: 22,
   },
+  emergencyTextBox: {
+    flex: 1,
+    marginLeft: 14,
+  },
   emergencyTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -264,6 +284,24 @@ export const styles = StyleSheet.create({
     color: '#FADBD8',
     fontWeight: Typography.weights.medium,
     marginTop: 2,
+  },
+  emergencyRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  emergencyVideoButton: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emergencyVideoIcon: {
+    fontSize: 14,
   },
   emergencyArrowCircle: {
     width: 34,
@@ -393,6 +431,22 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+  },
+  secondaryTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  secondaryTutorialBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  secondaryTutorialIcon: {
+    fontSize: 12,
   },
   secondaryIconBox: {
     width: 40,

@@ -12,10 +12,17 @@ import {
   ScreenWrapper,
   Badge,
   LescoVideoModal,
+  type LescoVideoInfo,
 } from '@/shared/components';
 import { colors } from '@/shared/theme/colors';
 import { haptics } from '@/shared/utils/haptics';
+import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { SosContactsScreen } from './SosContactsScreen';
+import {
+  dispatchEmergencySosAlert,
+  requestAllAppPermissions,
+} from '../services/emergencyLocationService';
+import { SosContact } from '../types/emergencias.types';
 import { EmergencyCategory, EmergenciesScreenProps } from '../types/emergencias.types';
 
 
@@ -65,24 +72,78 @@ const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
 export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: EmergenciesScreenProps) {
   const router = useRouter();
   const [selectedVideoPhrase, setSelectedVideoPhrase] = useState<string | null>(null);
+  const user = useAuthStore((state) => state.user);
+  const [activeGuideVideo, setActiveGuideVideo] = useState<LescoVideoInfo | null>(null);
   const [showSosContacts, setShowSosContacts] = useState(false);
   // Estado de GPS: luz verde si está activo (predeterminado), gris si está desactivado
   const [isGpsActive, setIsGpsActive] = useState(true);
 
-  const handleDispatch911 = (category: EmergencyCategory) => {
+  // Solicitar permisos al cargar
+  React.useEffect(() => {
+    requestAllAppPermissions().then((res) => {
+      setIsGpsActive(res.locationGranted);
+    }).catch(() => {});
+  }, []);
+
+  const contacts: SosContact[] = React.useMemo(() => {
+    if (user?.sosContacts && user.sosContacts.length > 0) {
+      return user.sosContacts as SosContact[];
+    }
+    if (user?.contactoEmergenciaNombre || user?.contactoEmergencia || user?.emergencyContact) {
+      return [
+        {
+          id: 'sos-primary',
+          name: user.contactoEmergenciaNombre || 'Contacto SOS',
+          phone: user.contactoEmergencia || user.emergencyContact || '',
+          relation: user.contactoEmergenciaParentesco || 'Familiar SOS',
+          knowsLesco: user.contactoEmergenciaSabeLesco ?? true,
+          receivesSms: true,
+        },
+      ];
+    }
+    return [];
+  }, [user]);
+
+  const handleDispatchSosAlert = (category: EmergencyCategory) => {
+    if (contacts.length === 0) {
+      Alert.alert(
+        'Sin Contactos SOS',
+        'No tienes contactos registrados en tu red de auxilio. Agrega al menos un familiar o persona de confianza para enviarle la alerta con tu ubicación GPS.',
+        [
+          { text: 'Configurar Contactos', onPress: () => setShowSosContacts(true) },
+          { text: 'Cancelar', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+
+    const contactNames = contacts.map((c) => c.name).join(', ');
+
     Alert.alert(
-      '🚨 Auxilio Inmediato 9-1-1',
-      `¿Confirmas el envío de auxilio por "${category.title}"? Tu ubicación GPS se adjuntará automáticamente en segundo plano.`,
+      '🚨 Alerta SOS a Red de Contactos',
+      `¿Confirmas el envío de auxilio por "${category.title}" a tus contactos (${contactNames})?\n\nTu ubicación GPS satelital se adjuntará automáticamente en segundo plano.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'PEDIR AUXILIO 🚨',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              '✅ Alerta Transmitida',
-              'Tu reporte y geolocalización fueron enviados con éxito a la central del 9-1-1 y a tus contactos SOS. La ayuda va en camino.'
-            );
+          onPress: async () => {
+            haptics.emergency();
+            const res = await dispatchEmergencySosAlert(contacts, category.title, user?.name);
+            if (res.success) {
+              const coordsNotice = res.coords
+                ? `\n\n📍 Coordenadas: ${res.coords.formattedText}`
+                : '';
+              const deliveryNote = res.dispatchedByServer
+                ? 'El servidor transmitió automáticamente el mensaje con tus coordenadas satelitales en segundo plano.'
+                : 'Se preparó el mensaje con tus coordenadas satelitales.';
+              Alert.alert(
+                '✅ Alerta SOS Transmitida',
+                `${deliveryNote}${coordsNotice}\n\nNotificados: ${res.phoneNumbers.join(', ')}.`
+              );
+            } else {
+              Alert.alert('Alerta SOS', res.error || 'Verifica los permisos de GPS en tu dispositivo.');
+            }
           },
         },
       ]
@@ -128,12 +189,54 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.pageTitle}>Emergencias 9-1-1</Text>
+        {/* Encabezado Módulo 4 */}
+        <Text style={styles.pageTitle}>Emergencias y Red SOS</Text>
         <Text style={styles.pageSubtitle}>
-          Toca tu situación para pedir auxilio inmediato con un solo toque
+          Auxilio inmediato con ubicación GPS satelital transmitida a tus contactos SOS
         </Text>
 
-        {/* ACCESO A CONTACTOS SOS */}
+        <View style={styles.module4GuidesRow}>
+          <TouchableOpacity
+            style={styles.module4GuideChip}
+            onPress={() => {
+              haptics.light();
+              setActiveGuideVideo({
+                r2Key: 'lesco/v1/m4/4_1.mp4',
+                title: 'Centro de Emergencias y Botón de Pánico SOS',
+                category: 'Emergencias y Auxilio SOS',
+                glossText:
+                  'MANTENER PRESIONADO BOTÓN ROJO SOS 2 SEGUNDOS / ALERTA SILENCIOSA SMS / UBICACIÓN GPS CONTACTOS AUXILIO',
+              });
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Ver en señas LESCO cómo funciona el botón de pánico SOS"
+          >
+            <Text style={{ fontSize: 13 }}>📹</Text>
+            <Text style={styles.module4GuideChipText}>Botón SOS en señas</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.module4GuideChip}
+            onPress={() => {
+              haptics.light();
+              setActiveGuideVideo({
+                r2Key: 'lesco/v1/m4/4_2.mp4',
+                title: 'Conexión y Despacho con el 911',
+                category: 'Emergencias y Auxilio SOS',
+                glossText:
+                  'CONECTAR 911 / COMPARTIR CONDICIÓN PERSONA SORDA / UBICACIÓN GPS / AMBULANCIA POLICÍA BOMBEROS',
+              });
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Ver en señas LESCO cómo funciona la conexión y despacho con el 9-1-1"
+          >
+            <Text style={{ fontSize: 13 }}>📹</Text>
+            <Text style={styles.module4GuideChipText}>Despacho 911 en señas</Text>
+          </TouchableOpacity>
+        </View>
+
         <Pressable
           onPress={() => {
             haptics.light();
@@ -151,24 +254,14 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
             <View style={styles.sosContactsIconBox}>
               <Text style={styles.sosContactsEmoji}>👥</Text>
             </View>
-            <View style={styles.sosContactsTextFlex}>
-              <Text style={styles.sosContactsTitle}>Red de Contactos SOS</Text>
-              <Text style={styles.sosContactsSub}>
-                Gestiona tus contactos de auxilio rápido y avisos por SMS
-              </Text>
-            </View>
+            <Text style={styles.sosContactsTitle}>Red de Contactos SOS</Text>
           </View>
           <View style={styles.sosContactsArrow}>
             <Text style={styles.sosContactsArrowText}>→</Text>
           </View>
         </Pressable>
 
-        {/* LISTA DIRECTA DE SITUACIONES DE EMERGENCIA (SIN RUIDO VISUAL) */}
-        <View style={styles.listHeaderRow}>
-          <Text style={styles.listHeaderTitle}>
-            ¿Qué está sucediendo? Toca tu emergencia:
-          </Text>
-        </View>
+
 
         <View style={styles.categoriesList}>
           {EMERGENCY_CATEGORIES.map((cat) => (
@@ -177,15 +270,7 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
                 <View style={styles.catIconBox}>
                   <Text style={styles.catEmoji}>{cat.icon}</Text>
                 </View>
-                <View style={styles.catTextFlex}>
-                  <View style={styles.catTitleBadgeRow}>
-                    <Text style={styles.catTitle}>{cat.title}</Text>
-                    <View style={styles.catTagPill}>
-                      <Text style={styles.catTagText}>{cat.tag}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.catDesc}>{cat.description}</Text>
-                </View>
+                <Text style={styles.catTitle}>{cat.title}</Text>
               </View>
 
               <View style={styles.catButtonsGrid}>
@@ -193,14 +278,14 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
                   onPress={() => setSelectedVideoPhrase(cat.phrase)}
                   style={({ pressed }) => [styles.lescoBtn, pressed && styles.pressed]}>
                   <Text style={styles.btnEmoji}>📹</Text>
-                  <Text style={styles.lescoBtnText}>Ver seña LESCO</Text>
+                  <Text style={styles.lescoBtnText}>Ver seña</Text>
                 </Pressable>
 
                 <Pressable
-                  onPress={() => handleDispatch911(cat)}
+                  onPress={() => handleDispatchSosAlert(cat)}
                   style={({ pressed }) => [styles.dispatchBtn, pressed && styles.pressed]}>
                   <Text style={styles.btnEmoji}>🚨</Text>
-                  <Text style={styles.dispatchBtnText}>Alerta 9-1-1</Text>
+                  <Text style={styles.dispatchBtnText}>Alerta SOS</Text>
                 </Pressable>
               </View>
             </View>
@@ -209,11 +294,22 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
       </View>
 
       {/* Modal de Demostración Video LESCO */}
-      <LescoVideoModal
-        visible={Boolean(selectedVideoPhrase)}
-        onClose={() => setSelectedVideoPhrase(null)}
-        videoTitle={selectedVideoPhrase || 'Demostración LESCO'}
-      />
+      {selectedVideoPhrase ? (
+        <LescoVideoModal
+          visible={true}
+          onClose={() => setSelectedVideoPhrase(null)}
+          videoTitle={selectedVideoPhrase}
+        />
+      ) : null}
+
+      {/* Modal de Guías Oficiales Módulo 4 (4.1 y 4.2) */}
+      {activeGuideVideo ? (
+        <LescoVideoModal
+          visible={true}
+          videoInfo={activeGuideVideo}
+          onClose={() => setActiveGuideVideo(null)}
+        />
+      ) : null}
     </ScreenWrapper>
   );
 }
@@ -302,7 +398,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#7A6E5C',
     fontWeight: '500',
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  module4GuidesRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  module4GuideChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: '#F3EADA',
+    borderWidth: 1.5,
+    borderColor: '#EAE0D0',
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+  },
+  module4GuideChipText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#B5551A',
   },
   sosContactsCard: {
     backgroundColor: '#FFFFFF',
@@ -444,44 +563,53 @@ const styles = StyleSheet.create({
   catButtonsGrid: {
     flexDirection: 'row',
     gap: 10,
+    marginTop: 2,
   },
   lescoBtn: {
     flex: 1,
     backgroundColor: '#F3EADA',
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingVertical: 16,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#EAE0D0',
+    minHeight: 56,
   },
   lescoBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
     color: '#B5551A',
     marginLeft: 6,
   },
   dispatchBtn: {
-    flex: 1,
+    flex: 2,
     backgroundColor: '#C0392B',
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingVertical: 16,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 56,
+    shadowColor: '#C0392B',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   dispatchBtnText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '900',
     color: '#FFFFFF',
     marginLeft: 6,
+    letterSpacing: 0.3,
   },
   btnEmoji: {
-    fontSize: 14,
+    fontSize: 16,
   },
   pressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.9,
+    transform: [{ scale: 0.97 }],
+    opacity: 0.88,
   },
 });

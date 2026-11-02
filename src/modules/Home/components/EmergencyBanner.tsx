@@ -9,55 +9,45 @@ interface EmergencyBannerProps {
 
 export function EmergencyBanner({ onPress, onPressTutorial }: EmergencyBannerProps) {
   return (
-    <View style={styles.emergencyBanner}>
-      <TouchableOpacity
-        style={styles.emergencyLeft}
-        onPress={onPress}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel="Módulo de Emergencias SOS 911"
-      >
-        <View style={styles.emergencyIconBox}>
-          <Text style={styles.emergencyEmoji}>🚨</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <View style={styles.emergencyTitleRow}>
-            <Text style={styles.emergencyTitle}>Emergencias</Text>
-            <View style={styles.emergencySosTag}>
-              <Text style={styles.emergencySosTagText}>SOS</Text>
-            </View>
-          </View>
-          <Text style={styles.emergencySubtitle}>Policía, Bomberos, Ambulancia</Text>
-        </View>
-      </TouchableOpacity>
+    <TouchableOpacity
+      style={styles.emergencyBanner}
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel="Módulo de Emergencias SOS 911"
+    >
+      <View style={styles.emergencyIconBox}>
+        <Text style={styles.emergencyEmoji}>🚨</Text>
+      </View>
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {/* Botón LESCO para el módulo de emergencias */}
+      <View style={styles.emergencyTextBox}>
+        <Text style={styles.emergencyTitle}>Emergencias</Text>
+      </View>
+
+      <View style={styles.emergencyRightActions}>
         <TouchableOpacity
-          onPress={onPressTutorial}
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 17,
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.35)',
-            alignItems: 'center',
-            justifyContent: 'center',
+          style={styles.emergencyVideoButton}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            onPressTutorial?.();
           }}
-          accessibilityLabel="Ver explicación de emergencias en señas LESCO"
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Ver tutorial de Emergencias en LESCO"
         >
-          <Text style={{ fontSize: 14 }}>📹</Text>
+          <Text style={styles.emergencyVideoIcon}>📹</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.emergencyArrowCircle}
           onPress={onPress}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Ir a Emergencias"
         >
           <Text style={styles.emergencyArrowText}>→</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }

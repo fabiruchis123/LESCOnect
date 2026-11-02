@@ -10,7 +10,6 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
-import * as Contacts from 'expo-contacts/legacy';
 import { Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
 

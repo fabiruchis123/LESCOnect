@@ -1,3 +1,15 @@
+import {
+  analyzeLescoGrammarCoherence,
+  buildCanonicalLescoGloss,
+  translateSpanishToLescoCorpus,
+  type LescoCoherentPhraseMatch,
+  type LescoCorpusEntry,
+} from './lescoGrammarCoherenceService';
+import { registerCenarecVocabularyIntoGrammar } from './cenarecDictionaryService';
+
+// Registro automático e idempotente del diccionario CENAREC en la gramática
+registerCenarecVocabularyIntoGrammar();
+
 export interface LescoRecognitionResult {
   detected: boolean;
   letter: string;
@@ -5,13 +17,14 @@ export interface LescoRecognitionResult {
   confidence: number;
   tip: string;
   rawAnalysis?: string;
+  coherentMatch?: LescoCoherentPhraseMatch | null;
 }
 
-const LESCO_PROMPT = `Eres el clasificador de visión artificial oficial de Lengua de Señas Costarricense (LESCO) basado en los manuales de Hands-On LESCO y CENAREC Costa Rica.
+export const PROMPT_STATIC = `Eres el clasificador de visión artificial oficial de Lengua de Señas Costarricense (LESCO) basado en los manuales de Hands-On LESCO, CENAREC Costa Rica y el Corpus Oficial de los 54 Videos de LESCOnect.
 
-Determina con precisión qué seña manual del alfabeto LESCO está realizando la persona en la imagen:
+Determina con precisión qué seña manual del alfabeto dactilológico o seña léxica LESCO está realizando la persona en la imagen:
 
-GUÍA OFICIAL DEL ALFABETO LESCO (MANOS-ON LESCO / COSTA RICA):
+GUÍA OFICIAL DEL ALFABETO LESCO (MANOS-ON LESCO / CENAREC COSTA RICA - 30 LETRAS + SEÑAS LÉXICAS CLAVE):
 - "A": Puño cerrado al frente, 4 dedos flexionados, pulgar erguido descansando pegado al costado exterior del índice.
 - "B": 4 dedos completamente extendidos juntos hacia arriba, palma al frente, pulgar doblado cruzando sobre la palma.
 - "C": Todos los dedos curvados en forma de semicírculo continuo formando la silueta de una letra "C".
@@ -37,15 +50,22 @@ GUÍA OFICIAL DEL ALFABETO LESCO (MANOS-ON LESCO / COSTA RICA):
 - "W": Dedos índice, medio y anular rectos hacia arriba y separados.
 - "X": Dedo índice flexionado en forma de garfio/gancho; demás dedos en puño.
 - "Y": Pulgar y meñique completamente extendidos hacia los lados (estilo shaka/surf); 3 dedos centrales cerrados.
+- "AYUDA": Puño cerrado con pulgar erguido apoyado sobre la palma abierta de la otra mano elevándose levemente.
+
+CONTEXTO MORFOSINTÁCTICO Y VOCABULARIO DEL CORPUS LESCO (54 VIDEOS OFICIALES):
+- Las personas sordas en Costa Rica combinan deletreo dactilológico y glosas en estructura TIEMPO -> LUGAR -> OBJETO/TEMA -> SUJETO -> VERBO -> INTERROGACIÓN/NEGACIÓN.
+- Vocabulario prioritario de ventanillas y emergencias: HOLA, GRACIAS, POR FAVOR, SÍ, NO, AYUDA, SORDO, CÉDULA, HOSPITAL, DOLOR, CITA MÉDICA, MEDICAMENTOS, POLICÍA, OFICIAL, ROBO, BANCO, TRÁMITE, TARJETA, CAJERO, CUENTA, DEPÓSITO, FUEGO, BOMBEROS, AMBULANCIA.
 
 CRITERIOS DE CLASIFICACIÓN:
-1. Si reconoces con certeza la postura de la mano según esta guía, responde "detected": true con la letra en mayúscula y "confidence" (70 a 99).
+1. Si reconoces con certeza la postura de la mano según esta guía, responde "detected": true con la letra o glosa en mayúscula y "confidence" (70 a 99).
 2. Sé tolerante al ángulo de la cámara del usuario (frontal o selfie).
 3. Si la imagen está en negro, muy oscura o no se muestra ninguna mano con postura de seña, responde "detected": false.
 4. Responde ÚNICAMENTE en JSON válido sin texto adicional:
 {"detected": true, "letter": "L", "confidence": 95}
 o
 {"detected": false, "letter": "", "confidence": 0}`;
+
+const LESCO_PROMPT = PROMPT_STATIC;
 
 // Modelos activos verificados con disponibilidad y cuota fresca
 const MODELS = [
@@ -191,13 +211,16 @@ export async function recognizeLescoSignFromBase64(
       );
 
       if (isDetected) {
+        const cleanLetter = parsed.letter.toUpperCase().trim();
+        const coherence = analyzeLescoGrammarCoherence(cleanLetter);
         return {
           detected: true,
-          letter: parsed.letter.toUpperCase().trim(),
-          name: `Seña ${parsed.letter}`,
+          letter: cleanLetter,
+          name: `Seña ${cleanLetter}`,
           confidence: Math.min(100, Math.max(0, Math.round(Number(parsed.confidence) || 85))),
           tip: '',
           rawAnalysis: textPart,
+          coherentMatch: coherence.primaryMatch,
         };
       }
 
@@ -222,28 +245,31 @@ export async function recognizeLescoSignFromBase64(
 // Envía 3 fotos en secuencia y pide a Gemini que identifique el movimiento
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DYNAMIC_PROMPT = `Eres un experto en Lengua de Señas Costarricense (LESCO).
-Te envío 3 imágenes en secuencia (Foto 1 → Foto 2 → Foto 3) que capturan el movimiento de una mano durante ~1 segundo.
+export const PROMPT_DYNAMIC = `Eres el clasificador experto de Lengua de Señas Costarricense (LESCO) entrenado con los 54 Videos Oficiales de LESCOnect y CENAREC.
+Te envío 3 imágenes en secuencia (Foto 1 → Foto 2 → Foto 3) que capturan la trayectoria cinemática de una o dos manos durante ~1 segundo.
 
-Señas DINÁMICAS (con movimiento) que debes identificar:
+Señas DINÁMICAS (con movimiento) y glosas del corpus oficial que debes identificar:
 - Z: índice extendido trazando "Z" en el aire (zigzag horizontal)
-- J: meñique extendido trazando "J" hacia abajo con curva
-- HOLA: palma abierta moviéndose lateralmente (saludo)
-- GRACIAS: mano abierta desde el mentón extendiéndose al frente/abajo
-- SÍ: puño cerrado moviéndose arriba y abajo (asentimiento)
-- NO: dedos juntos moviéndose horizontalmente de lado a lado
-- LL: forma de L moviéndose lateralmente
-- RR: dedos R moviéndose lateralmente
-- Ñ: puño con sacudida horizontal
-- POR FAVOR: palma abierta haciendo círculo en el pecho
+- J: meñique extendido trazando "J" hacia abajo con curva en gancho
+- LL: postura de L (índice y pulgar a 90°) desplazándose lateralmente
+- RR: dedos índice y medio cruzados desplazándose lateralmente
+- Ñ: postura de N (dos dedos hacia abajo sobre pulgar) con oscilación horizontal
+- HOLA: palma abierta a la altura de la sien/frente moviéndose lateralmente en saludo ("Hola, buenos días / buenas tardes")
+- GRACIAS: mano abierta partiendo del mentón y extendiéndose hacia el frente/abajo ("Muchas gracias por su paciencia y ayuda")
+- POR FAVOR: palma abierta apoyada en el pecho realizando rotación circular ("¿Podría escribir las indicaciones por favor?")
+- SÍ: puño cerrado moviéndose verticalmente arriba y abajo (asentimiento)
+- NO: dedos índice y medio cerrándose en pinza contra el pulgar repetidamente ("No comprendí bien, ¿puede repetirlo por escrito?")
+- AYUDA: puño con pulgar arriba sobre palma abierta elevándose hacia arriba ("¡Atención! Soy una persona sorda y necesito auxilio urgente")
 
-Analiza el MOVIMIENTO entre las 3 fotos. Si identificas una seña dinámica, reporta detected:true.
+Analiza el MOVIMIENTO entre las 3 fotos. Si identificas una seña dinámica del vocabulario oficial LESCO, reporta detected:true.
 Si la mano está quieta o no hay movimiento claro, reporta detected:false.
 
 Responde ÚNICAMENTE con JSON (sin markdown):
 {"detected": true, "letter": "HOLA", "confidence": 90}
 o
 {"detected": false, "letter": "", "confidence": 0}`;
+
+const DYNAMIC_PROMPT = PROMPT_DYNAMIC;
 
 /**
  * Reconoce señas DINÁMICAS enviando 3 fotos en secuencia a Gemini.
@@ -335,13 +361,16 @@ export async function recognizeDynamicLescoSign(
       );
 
       if (isDetected) {
+        const cleanLetter = parsed.letter.toUpperCase().trim();
+        const coherence = analyzeLescoGrammarCoherence(cleanLetter);
         return {
           detected: true,
-          letter: parsed.letter.toUpperCase().trim(),
-          name: `Seña ${parsed.letter}`,
+          letter: cleanLetter,
+          name: `Seña ${cleanLetter}`,
           confidence: Math.min(100, Math.max(0, Math.round(Number(parsed.confidence) || 85))),
           tip: '',
           rawAnalysis: textPart,
+          coherentMatch: coherence.primaryMatch,
         };
       }
 
@@ -354,3 +383,17 @@ export async function recognizeDynamicLescoSign(
 
   return EMPTY;
 }
+
+/**
+ * Traduce cualquier frase en español o secuencia de palabras hacia su glosa morfosintáctica LESCO
+ * (Tiempo-Lugar-Objeto-Sujeto-Verbo) y la vincula con el video oficial de los 54 videos de LESCOnect.
+ */
+export function translateTextToLescoGloss(inputText: string): {
+  lescoGloss: string;
+  matchedVideo: LescoCorpusEntry;
+  confidence: number;
+} {
+  return translateSpanishToLescoCorpus(inputText);
+}
+
+export { buildCanonicalLescoGloss };

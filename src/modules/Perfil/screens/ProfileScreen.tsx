@@ -6,7 +6,7 @@ import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { useSettingsStore } from '@/shared/stores/useSettingsStore';
 import { haptics } from '@/shared/utils/haptics';
 import { Radius, Shadows, Spacing } from '@/shared/theme';
-import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 
 import { EditProfileScreen } from './EditProfileScreen';
 import { TextSizeScreen } from './TextSizeScreen';
@@ -17,6 +17,8 @@ export function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const fontScale = useSettingsStore((state) => state.fontScale || 1.0);
+  const fontSizeNumber = useSettingsStore((state) => state.fontSizeNumber || 16);
 
   const [currentView, setCurrentView] = useState<'menu' | 'editProfile' | 'textSize' | 'vibration'>('menu');
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
@@ -37,7 +39,6 @@ export function ProfileScreen() {
     haptics.light();
     if (isAuthenticated) {
       logout();
-      router.replace('/(auth)/welcome');
     } else {
       router.push('/(auth)/signup');
     }
@@ -47,25 +48,32 @@ export function ProfileScreen() {
   const displayName = user?.name || 'Génesis Pamela';
   const displaySubtitle = 'Persona Sorda • LESCO';
 
+  const getTextSizeLabel = (size: number) => {
+    if (size <= 14) return 'Pequeño (14px)';
+    if (size <= 16) return 'Normal (16px)';
+    if (size <= 20) return 'Grande (20px)';
+    return 'Muy grande (24px)';
+  };
+
   return (
     <SafeAreaView style={profileStyles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FBF6EE" />
 
-      {/* MENÚ DE PERFIL PRINCIPAL (Fiel al Prototipo) */}
+      {/* MENÚ DE PERFIL PRINCIPAL */}
       <ScrollView contentContainerStyle={profileStyles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* Título Superior */}
         <View style={profileStyles.headerBox}>
-          <Text style={profileStyles.mainTitle}>Perfil</Text>
-          <Text style={profileStyles.mainSubtitle}>Configuración de tu cuenta</Text>
+          <Text style={[profileStyles.mainTitle, { fontSize: Math.round(28 * fontScale) }]}>Perfil</Text>
+          <Text style={[profileStyles.mainSubtitle, { fontSize: Math.round(13 * fontScale) }]}>Configuración de tu cuenta</Text>
         </View>
 
         {/* Avatar Cuadrado Redondeado Terracota */}
         <View style={profileStyles.avatarBox}>
           <View style={profileStyles.avatarCard}>
-            <Text style={profileStyles.avatarLetter}>{initial}</Text>
+            <Text style={[profileStyles.avatarLetter, { fontSize: Math.round(44 * fontScale) }]}>{initial}</Text>
           </View>
-          <Text style={profileStyles.userName}>{displayName}</Text>
-          <Text style={profileStyles.userStatus}>{displaySubtitle}</Text>
+          <Text style={[profileStyles.userName, { fontSize: Math.round(22 * fontScale) }]}>{displayName}</Text>
+          <Text style={[profileStyles.userStatus, { fontSize: Math.round(13 * fontScale) }]}>{displaySubtitle}</Text>
         </View>
 
         {/* Lista de Opciones */}
@@ -83,13 +91,27 @@ export function ProfileScreen() {
               <Text style={{ fontSize: 18 }}>✏️</Text>
             </View>
             <View style={profileStyles.optionTextBox}>
-              <Text style={profileStyles.optionTitle}>Editar perfil</Text>
-              <Text style={profileStyles.optionSubtitle}>Actualiza nombre, cédula y teléfonos</Text>
+              <Text style={[profileStyles.optionTitle, { fontSize: Math.round(15 * fontScale) }]}>Editar perfil</Text>
+              <Text style={[profileStyles.optionSubtitle, { fontSize: Math.round(12 * fontScale) }]}>Actualiza nombre, cédula y teléfonos</Text>
             </View>
             <View style={profileStyles.optionRight}>
-              <View style={profileStyles.videoPill}>
+              <TouchableOpacity
+                style={profileStyles.videoPill}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  setActiveVideo({
+                    r2Key: 'lesco/v1/m6/6_1.mp4',
+                    title: 'Editar Perfil y Contactos SOS',
+                    category: 'Configuración Personal',
+                    glossText: 'PERFIL DATOS PERSONALES / NOMBRE CÉDULA TELÉFONO / CONTACTO EMERGENCIA GUARDAR',
+                  });
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Ver explicación de editar perfil en señas LESCO"
+              >
                 <Text style={{ fontSize: 13 }}>📹</Text>
-              </View>
+              </TouchableOpacity>
               <Text style={profileStyles.optionArrow}>→</Text>
             </View>
           </TouchableOpacity>
@@ -107,13 +129,29 @@ export function ProfileScreen() {
               <Text style={{ fontSize: 16 }}>🔤</Text>
             </View>
             <View style={profileStyles.optionTextBox}>
-              <Text style={profileStyles.optionTitle}>Tamaño de texto</Text>
-              <Text style={profileStyles.optionSubtitle}>Ajusta el tamaño de la letra</Text>
+              <Text style={[profileStyles.optionTitle, { fontSize: Math.round(15 * fontScale) }]}>Tamaño de texto</Text>
+              <Text style={[profileStyles.optionSubtitle, { fontSize: Math.round(12 * fontScale) }]}>
+                Actual: {getTextSizeLabel(fontSizeNumber)} • Toca para cambiar
+              </Text>
             </View>
             <View style={profileStyles.optionRight}>
-              <View style={[profileStyles.videoPill, { backgroundColor: '#EAF5EA' }]}>
+              <TouchableOpacity
+                style={[profileStyles.videoPill, { backgroundColor: '#EAF5EA' }]}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  setActiveVideo({
+                    r2Key: 'lesco/v1/m6/6_3.mp4',
+                    title: 'Ajustes de Tamaño de Texto',
+                    category: 'Accesibilidad Visual',
+                    glossText: 'LETRAS TEXTO TAMAÑO GRANDE PEQUEÑO CONFIGURAR VISUAL FÁCIL',
+                  });
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Ver explicación de tamaño de texto en señas LESCO"
+              >
                 <Text style={{ fontSize: 13 }}>📹</Text>
-              </View>
+              </TouchableOpacity>
               <Text style={profileStyles.optionArrow}>→</Text>
             </View>
           </TouchableOpacity>
@@ -131,31 +169,45 @@ export function ProfileScreen() {
               <Text style={{ fontSize: 18 }}>📳</Text>
             </View>
             <View style={profileStyles.optionTextBox}>
-              <Text style={profileStyles.optionTitle}>Vibración</Text>
-              <Text style={profileStyles.optionSubtitle}>
+              <Text style={[profileStyles.optionTitle, { fontSize: Math.round(15 * fontScale) }]}>Vibración</Text>
+              <Text style={[profileStyles.optionSubtitle, { fontSize: Math.round(12 * fontScale) }]}>
                 Ajustes táctiles y hápticos
               </Text>
             </View>
             <View style={profileStyles.optionRight}>
-              <View style={[profileStyles.videoPill, { backgroundColor: '#FEF9E7' }]}>
+              <TouchableOpacity
+                style={[profileStyles.videoPill, { backgroundColor: '#FEF9E7' }]}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  setActiveVideo({
+                    r2Key: 'lesco/v1/m6/6_2.mp4',
+                    title: 'Ajustes de Vibración Háptica',
+                    category: 'Accesibilidad Táctil',
+                    glossText: 'VIBRAR TELÉFONO HÁPTICO TOCAR BOTONES SENTIR ALERTA',
+                  });
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Ver explicación de vibración en señas LESCO"
+              >
                 <Text style={{ fontSize: 13 }}>📹</Text>
-              </View>
+              </TouchableOpacity>
               <Text style={profileStyles.optionArrow}>→</Text>
             </View>
           </TouchableOpacity>
         </View>
 
-          {/* Botón Verde / Salvia Fiel al Prototipo */}
-          <TouchableOpacity
-            style={profileStyles.authButton}
-            onPress={handleAuthAction}
-            activeOpacity={0.85}
-          >
-            <Text style={profileStyles.authButtonText}>
-              Cerrar Sesión / Probar Registro
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
+        {/* Botón Verde / Salvia Fiel al Prototipo */}
+        <TouchableOpacity
+          style={profileStyles.authButton}
+          onPress={handleAuthAction}
+          activeOpacity={0.85}
+        >
+          <Text style={[profileStyles.authButtonText, { fontSize: Math.round(16 * fontScale) }]}>
+            Cerrar Sesión
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       {/* Modal de Video LESCO explicativo */}
       {activeVideo ? (

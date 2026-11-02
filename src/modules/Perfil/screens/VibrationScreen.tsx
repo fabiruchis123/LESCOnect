@@ -11,7 +11,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Radius, Shadows, Spacing, Typography } from '@/shared/theme';
 import { haptics } from '@/shared/utils/haptics';
-import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components/LescoVideoModal';
+import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
+
+import { useSettingsStore } from '@/shared/stores';
 
 interface VibrationScreenProps {
   onBackPress?: () => void;
@@ -19,7 +21,9 @@ interface VibrationScreenProps {
 
 export function VibrationScreen({ onBackPress }: VibrationScreenProps) {
   const router = useRouter();
-  const [isVibrationEnabled, setIsVibrationEnabled] = useState(true);
+  const isVibrationEnabled = useSettingsStore((state) => state.vibrationEnabled);
+  const setVibrationEnabled = useSettingsStore((state) => state.setVibrationEnabled);
+  const fontScale = useSettingsStore((state) => state.fontScale || 1.0);
   const [intensity, setIntensity] = useState<'suave' | 'media' | 'fuerte'>('media');
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
 
@@ -53,6 +57,7 @@ export function VibrationScreen({ onBackPress }: VibrationScreenProps) {
             style={styles.lescoBtn}
             onPress={() =>
               setActiveVideo({
+                r2Key: 'lesco/v1/m6/6_2.mp4',
                 title: 'Ajustes de Vibración Háptica',
                 category: 'Accesibilidad Táctil',
                 glossText: 'VIBRAR TELÉFONO HÁPTICO TOCAR BOTONES SENTIR ALERTA',
@@ -82,7 +87,7 @@ export function VibrationScreen({ onBackPress }: VibrationScreenProps) {
               value={isVibrationEnabled}
               onValueChange={(val) => {
                 haptics.light();
-                setIsVibrationEnabled(val);
+                setVibrationEnabled(val);
               }}
               trackColor={{ false: '#EAE0D0', true: Colors.primary.border }}
               thumbColor={isVibrationEnabled ? Colors.primary.main : '#FFFFFF'}

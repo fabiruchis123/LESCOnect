@@ -14,12 +14,18 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "cr.ac.utn.lesconect",
       "infoPlist": {
-        "NSCameraUsageDescription": "Permite a LESCOnect acceder a la cámara para traducir señas dactilológicas en tiempo real."
+        "NSCameraUsageDescription": "Permite a LESCOnect acceder a la cámara para traducir señas dactilológicas en tiempo real.",
+        "NSLocationWhenInUseUsageDescription": "Permite a LESCOnect obtener tu ubicación satelital exacta para adjuntarla en las alertas de auxilio a tus contactos SOS.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Permite a LESCOnect obtener tu ubicación GPS satelital precisa en emergencias SOS.",
+        "NSContactsUsageDescription": "Permite a LESCOnect seleccionar contactos de tu agenda para añadirlos rápidamente a tu red de auxilio SOS.",
+        "NSPhotoLibraryUsageDescription": "Permite almacenar en caché local y precargar videos y recursos visuales para el modo offline."
       }
     },
     "android": {
-      "package": "com.lesconect.app",
+      "package": "cr.ac.utn.lesconect",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#FBF6EE",
         "foregroundImage": "./assets/LESCOnect-Logo-manos.png"
@@ -27,11 +33,14 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "CAMERA",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "CAMERA",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "VIBRATE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_CONTACTS",
+        "READ_SMS",
+        "RECEIVE_SMS",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -48,21 +57,18 @@
           "cameraPermission": "Permite a LESCOnect acceder a la cámara para traducir señas dactilológicas en tiempo real."
         }
       ],
-      "expo-video",
-      "./plugins/withLescoHandDetector"
-    ],
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "792f4736-1b3a-409a-a4b1-88ee9521d29a"
-      }
-    },
-    "owner": "pleivaz",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/792f4736-1b3a-409a-a4b1-88ee9521d29a"
-    }
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite a LESCOnect obtener tus coordenadas GPS satelitales en tiempo real para las alertas de auxilio SOS."
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Permite a LESCOnect seleccionar contactos de tu agenda para agregarlos a tu red de auxilio SOS."
+        }
+      ]
+    ]
   }
 }
