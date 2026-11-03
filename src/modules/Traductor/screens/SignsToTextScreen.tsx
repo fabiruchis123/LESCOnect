@@ -31,6 +31,9 @@ import {
   classifyTrainedAlphabetLesco,
   getTrainedLescoLandmarkTemplate,
 } from '../services/lescoAlphabetTrainerService';
+import {
+  classifyUnifiedLesco,
+} from '../services/lescoUnifiedRecognitionService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -829,7 +832,7 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
     return allCoherentMatches[0];
   }, [allCoherentMatches, selectedMatchR2Key]);
 
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const breathingAnim = useRef(new Animated.Value(0.6)).current;
   const cameraContainerRef = useRef<any>(null);
   const mediaPipeHandsRef = useRef<any>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
@@ -874,7 +877,7 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
 
     let isMounted = true;
 
-        // ── LOOP HÍBRIDO ULTRA FLUIDO (MediaPipe Nativo Offline + Anti-Parpadeo) ──
+    // ── LOOP HÍBRIDO ULTRA FLUIDO (MediaPipe Nativo Offline + Anti-Parpadeo) ──
     const runNativeHybridLoop = async () => {
       await new Promise((r) => setTimeout(r, 600));
 
@@ -887,7 +890,6 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
         ) {
           try {
             isProcessingRef.current = true;
-            setIsScanning(true);
 
             const photo = await cameraRef.current.takePictureAsync({
               base64: true,
@@ -906,21 +908,38 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                 try {
                   const nativeRes = await detectHandNative(photo.base64, facing);
                   if (nativeRes.detected && nativeRes.landmarks && nativeRes.landmarks.length >= 21) {
-                    const lms = nativeRes.landmarks.map((lm: any) => ({ x: lm.x, y: lm.y }));
-                    recognizedLandmarks = lms;
-
-                    const wrist = lms[0];
+                    const isFront = facing === 'front';
+                    const wrist = nativeRes.landmarks[0];
                     const now = Date.now();
                     trajectoryBufferRef.current.push({ x: wrist.x, y: wrist.y, time: now });
                     if (trajectoryBufferRef.current.length > 12) trajectoryBufferRef.current.shift();
 
-                    let cl = classifyLescoMotor3(lms, trajectoryBufferRef.current, 1);
-                    if (!cl) {
-                      const tr = classifyTrainedAlphabetLesco(nativeRes.landmarks as any);
-                      if (tr) {
-                        cl = { letter: tr.letter, confidence: Math.round(tr.confidence * 100), isDynamic: tr.isDynamic };
+                    // Espejado horizontal automático en modo frontal (x = 1 - x)
+                    const canonicalLms = isFront
+                      ? nativeRes.landmarks.map((lm: any) => ({ ...lm, x: 1 - lm.x }))
+                      : nativeRes.landmarks;
+
+                    const canonicalTraj = isFront
+                      ? trajectoryBufferRef.current.map((t) => ({ ...t, x: 1 - t.x }))
+                      : trajectoryBufferRef.current;
+
+                    recognizedLandmarks = canonicalLms.map((lm: any) => ({ x: lm.x, y: lm.y }));
+
+                    const unifiedMatch = classifyUnifiedLesco(
+                      nativeRes.landmarks as any,
+                      trajectoryBufferRef.current.map((t) => ({ x: t.x, y: t.y, timestamp: t.time })),
+                      {
+                        enableOneEuroFilter: true,
+                        previousLetterContext: wordBuffer,
+                        minConfidenceThreshold: 60,
+                        isFrontCamera: isFront,
                       }
-                    }
+                    );
+
+                    let cl = unifiedMatch
+                      ? { letter: unifiedMatch.letter, confidence: unifiedMatch.confidence, isDynamic: unifiedMatch.isDynamic }
+                      : classifyLescoMotor3(canonicalLms as any, canonicalTraj, 1);
+
                     if (cl && cl.letter) {
                       recognizedLetter = cl.letter;
                       recognizedConfidence = cl.confidence;
@@ -931,7 +950,6 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
 
               // 2) Fallback si MediaPipe no detectó postura
               if (!recognizedLetter && photo.base64) {
-                setCameraStatus('🔍 Analizando postura LESCO...');
                 const geminiRes = await recognizeLescoSignFromBase64(photo.base64);
                 if (geminiRes.detected && geminiRes.letter) {
                   recognizedLetter = geminiRes.letter;
@@ -950,8 +968,8 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                 }
 
                 const now = Date.now();
-                if ((now - lastAddedTimeRef.current) >= 1400) {
-                  haptics.success();
+                if ((now - lastAddedTimeRef.current) >= 1000) {
+                  haptics.light();
                   if (autoAddEnabled) {
                     setWordBuffer((prev) => {
                       const needsSpace = prev.length > 0 && !prev.endsWith(' ') && recognizedLetter.length > 1;
@@ -963,28 +981,27 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                   }
                   lastAddedTimeRef.current = now;
                   lastAddedSignRef.current = recognizedLetter;
-                } else {
-                  const remaining = Math.ceil((1400 - (now - lastAddedTimeRef.current)) / 1000);
-                  setCameraStatus(`👁 '${recognizedLetter}' lista — espera ${remaining}s`);
                 }
               } else if (isMounted) {
-                setIsHandPresent(false);
-                setDetectedSign('—');
-                setConfidence(0);
-                setRealLandmarks([]);
-                setCameraStatus('Muestra tu mano claramente frente a la cámara');
+                noHandCounterRef.current += 1;
+                if (noHandCounterRef.current >= 3) {
+                  setIsHandPresent(false);
+                  setDetectedSign('—');
+                  setConfidence(0);
+                  setRealLandmarks([]);
+                  setCameraStatus('Listo para señas — Coloca tu mano');
+                }
               }
             }
           } catch (err: any) {
             if (isMounted) setCameraStatus(`⚠️ ${err?.message ?? 'Verificando cámara...'}`);
           } finally {
             if (isMounted) {
-              setIsScanning(false);
               isProcessingRef.current = false;
             }
           }
         }
-        await new Promise((r) => setTimeout(r, 650));
+        await new Promise((r) => setTimeout(r, 800));
       }
     };
 
@@ -1035,19 +1052,27 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
           const multiHands = results.multiHandLandmarks || [];
           if (multiHands.length > 0) {
             const rawLandmarks = multiHands[0];
+            noHandCounterRef.current = 0;
             setIsHandPresent(true);
+
+            // En web con facingMode: 'user' (cámara frontal/selfie), aplicar espejado horizontal (x = 1 - x)
+            const isFrontWeb = true;
+            const canonicalLandmarks = rawLandmarks.map((lm: any) => ({
+              ...lm,
+              x: isFrontWeb ? 1 - lm.x : lm.x,
+            }));
 
             if (smoothedLandmarksRef.current.length === 21) {
               const alpha = 0.70;
-              const smoothed = rawLandmarks.map((lm: any, idx: number) => ({
+              const smoothed = canonicalLandmarks.map((lm: any, idx: number) => ({
                 x: lm.x * alpha + smoothedLandmarksRef.current[idx].x * (1 - alpha),
                 y: lm.y * alpha + smoothedLandmarksRef.current[idx].y * (1 - alpha),
               }));
               smoothedLandmarksRef.current = smoothed;
               setRealLandmarks(smoothed);
             } else {
-              smoothedLandmarksRef.current = rawLandmarks;
-              setRealLandmarks(rawLandmarks);
+              smoothedLandmarksRef.current = canonicalLandmarks;
+              setRealLandmarks(canonicalLandmarks);
             }
 
             const wrist = rawLandmarks[0];
@@ -1055,17 +1080,25 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
             trajectoryBufferRef.current.push({ x: wrist.x, y: wrist.y, time: now });
             if (trajectoryBufferRef.current.length > 12) trajectoryBufferRef.current.shift();
 
-            let classification = classifyLescoMotor3(rawLandmarks, trajectoryBufferRef.current, multiHands.length);
-            if (!classification) {
-              const trainedMatch = classifyTrainedAlphabetLesco(rawLandmarks);
-              if (trainedMatch) {
-                classification = {
-                  letter: trainedMatch.letter,
-                  confidence: trainedMatch.confidence,
-                  isDynamic: trainedMatch.isDynamic,
-                };
+            const canonicalTrajWeb = trajectoryBufferRef.current.map((t) => ({
+              ...t,
+              x: isFrontWeb ? 1 - t.x : t.x,
+            }));
+
+            const unifiedMatch = classifyUnifiedLesco(
+              rawLandmarks,
+              trajectoryBufferRef.current.map((t) => ({ x: t.x, y: t.y, timestamp: t.time })),
+              {
+                enableOneEuroFilter: true,
+                previousLetterContext: wordBuffer,
+                minConfidenceThreshold: 60,
+                isFrontCamera: isFrontWeb,
               }
-            }
+            );
+
+            let classification = unifiedMatch
+              ? { letter: unifiedMatch.letter, confidence: unifiedMatch.confidence, isDynamic: unifiedMatch.isDynamic }
+              : classifyLescoMotor3(canonicalLandmarks, canonicalTrajWeb, multiHands.length);
             if (classification) {
               voteBufferRef.current.push(classification.letter);
               if (voteBufferRef.current.length > 4) voteBufferRef.current.shift();
@@ -1081,26 +1114,25 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                 }
               });
 
-              // Mostrar la seña detectada INMEDIATAMENTE (sin esperar a escribir)
+              // Mostrar la seña detectada INMEDIATAMENTE en la interfaz
               setDetectedSign(maxSign);
               setConfidence(classification.confidence);
 
-              // Acumulador reducido: solo 3 frames (+1 por frame) para ser más responsivo
               if (voteBufferRef.current[voteBufferRef.current.length - 1] === maxSign) {
                 holdCounterRef.current = Math.min(6, holdCounterRef.current + 1);
               } else {
                 holdCounterRef.current = Math.max(0, holdCounterRef.current - 1);
               }
-              const THRESHOLD = 3;
+              const THRESHOLD = 2; // Rápido y fluido
               const progress = Math.min(100, Math.round((holdCounterRef.current / THRESHOLD) * 100));
               setHoldProgress(progress);
-              setCameraStatus(`✨ Seña: ${maxSign} (${classification.confidence}%) — ${holdCounterRef.current}/${THRESHOLD} frames`);
+              setCameraStatus(`✨ Seña: ${maxSign} (${classification.confidence}%)`);
 
               if (holdCounterRef.current >= THRESHOLD && autoAddEnabled) {
                 const nowW = Date.now();
-                const cooldownOkW = (nowW - lastAddedTimeRef.current) >= 2000;
+                const cooldownOkW = (nowW - lastAddedTimeRef.current) >= 1000;
                 if (cooldownOkW) {
-                  haptics.success();
+                  haptics.light();
                   setWordBuffer((prev) => {
                     const needsSpace = prev.length > 0 && !prev.endsWith(' ') && maxSign.length > 1;
                     return needsSpace ? prev + ' ' + maxSign : prev + maxSign;
@@ -1114,19 +1146,24 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                 voteBufferRef.current = [];
               }
             } else {
-              setCameraStatus('Mano detectada — ajusta la postura LESCO');
+              setCameraStatus('Listo para señas — Coloca tu mano');
               holdCounterRef.current = Math.max(0, holdCounterRef.current - 1);
               setHoldProgress(Math.min(100, Math.round((holdCounterRef.current / 3) * 100)));
             }
           } else {
-            setIsHandPresent(false);
-            setRealLandmarks([]);
-            smoothedLandmarksRef.current = [];
-            voteBufferRef.current = [];
-            trajectoryBufferRef.current = [];
-            holdCounterRef.current = Math.max(0, holdCounterRef.current - 2);
-            setHoldProgress(Math.min(100, Math.round((holdCounterRef.current / 3) * 100)));
-            setCameraStatus('Muestra tu mano frente a la cámara');
+            noHandCounterRef.current += 1;
+            if (noHandCounterRef.current >= 4) {
+              setIsHandPresent(false);
+              setDetectedSign('—');
+              setConfidence(0);
+              setRealLandmarks([]);
+              smoothedLandmarksRef.current = [];
+              voteBufferRef.current = [];
+              trajectoryBufferRef.current = [];
+              holdCounterRef.current = 0;
+              setHoldProgress(0);
+              setCameraStatus('Listo para señas — Coloca tu mano');
+            }
           }
         });
 
@@ -1265,8 +1302,10 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
     stopWebcam();
     if (onBackPress) {
       onBackPress();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace('/(tabs)');
     }
   };
 
@@ -1326,15 +1365,15 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 650, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 650, useNativeDriver: true }),
+        Animated.timing(breathingAnim, { toValue: 1.0, duration: 1100, useNativeDriver: true }),
+        Animated.timing(breathingAnim, { toValue: 0.6, duration: 1100, useNativeDriver: true }),
       ])
     );
     loop.start();
     return () => {
       loop.stop();
     };
-  }, [pulseAnim]);
+  }, [breathingAnim]);
 
   const filteredDictionary = LESCO_DICTIONARY.filter((item) => {
     if (dictFilter === 'todos') return true;
@@ -1464,24 +1503,23 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
                 </TouchableOpacity>
               ) : null}
 
-              {/* Indicador de Estado Visual y Discreto */}
+              {/* Indicador de Estado Visual y Discreto (Pulso Respiratorio Sutil, Sin Parpadeos) */}
               <View style={styles.statusBadge}>
-                <View
+                <Animated.View
                   style={[
                     styles.statusDot,
                     {
-                      backgroundColor: isScanning
-                        ? '#3498DB'
+                      opacity: isCameraActive ? breathingAnim : 1,
+                      backgroundColor: !isCameraActive
+                        ? '#E74C3C'
                         : isHandPresent
                         ? '#2ECC71'
-                        : isCameraActive
-                        ? '#2ECC71'
-                        : '#E74C3C',
+                        : '#2ECC71',
                     },
                   ]}
                 />
                 <Text style={styles.statusBadgeText}>
-                  {isScanning ? 'Analizando' : isHandPresent ? 'Detectando' : 'En vivo'}
+                  {!isCameraActive ? 'Pausado' : isHandPresent ? 'Seña activa' : 'En vivo'}
                 </Text>
               </View>
             </View>
@@ -1508,9 +1546,9 @@ export function SignsToTextScreen({ onBackPress }: { onBackPress?: () => void })
               ) : (
                 <View style={styles.waitingSignRow}>
                   <Text style={{ fontSize: 18 }}>🖐️</Text>
-                  <View style={styles.waitingDot} />
+                  <Animated.View style={[styles.waitingDot, { opacity: breathingAnim }]} />
                   <Text style={styles.waitingSignText}>
-                    {isScanning ? 'Analizando...' : 'Esperando seña'}
+                    {isHandPresent ? 'Alineando postura LESCO...' : 'Listo para señas — Coloca tu mano'}
                   </Text>
                 </View>
               )}

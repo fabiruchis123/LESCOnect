@@ -112,6 +112,11 @@ export function validateCRPhone(input: string): PhoneValidationResult {
     return { isValid: false, formatted: '', digits: '' };
   }
 
+  // Rechazar si contiene letras o caracteres no telefónicos ilegales
+  if (/[a-zA-Z]/.test(input) || /[^0-9+\s\-().]/.test(input)) {
+    return { isValid: false, formatted: '', digits: '' };
+  }
+
   let digits = input.replace(/\D/g, '');
   if (digits.startsWith('00506') && digits.length >= 13) {
     digits = digits.slice(5);

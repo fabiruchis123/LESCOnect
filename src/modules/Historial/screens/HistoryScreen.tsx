@@ -88,8 +88,10 @@ export function HistoryScreen({ onBackPress }: HistoryScreenProps = {}) {
     haptics.light();
     if (onBackPress) {
       onBackPress();
+    } else if (router.canGoBack()) {
+      router.back();
     } else {
-      router.push('/(tabs)');
+      router.replace('/(tabs)');
     }
   };
 
@@ -170,12 +172,12 @@ export function HistoryScreen({ onBackPress }: HistoryScreenProps = {}) {
             style={styles.backBtn}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Volver a Inicio"
+            accessibilityLabel="Volver"
           >
             <Text style={[styles.backBtnText, { fontSize: scaleFont(18) }]}>←</Text>
           </TouchableOpacity>
           <Text style={[styles.backBtnLabel, { fontSize: scaleFont(Typography.sizes.xs) }]}>
-            Volver a Inicio
+            Volver
           </Text>
 
           <TouchableOpacity

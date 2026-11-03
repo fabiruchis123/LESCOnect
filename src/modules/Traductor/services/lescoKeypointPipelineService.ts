@@ -132,6 +132,7 @@ export type DynamicLescoSignId =
   | 'Ñ'
   | 'LL'
   | 'RR'
+  | 'CH'
   | 'HOLA'
   | 'GRACIAS'
   | 'POR FAVOR'
@@ -334,10 +335,11 @@ export function extractBiomechanicalFeatures(
     return Number(clamp(0.45 * radialScore + 0.35 * straightnessScore + 0.2 * spanScore, 0, 1).toFixed(4));
   };
 
-  // Pulgar: apertura lateral + extensión interfalángica
+  // Pulgar: apertura lateral + extensión interfalángica calibrada
   const thumbSpan = dist3D(lm[4], lm[5]);
   const thumbStraightness = clamp(1 - (thumbAngles.pip + thumbAngles.dip) / 140, 0, 1);
-  const thumbExt = Number(clamp(0.6 * clamp((thumbSpan - 0.32) / 0.55, 0, 1) + 0.4 * thumbStraightness, 0, 1).toFixed(4));
+  const thumbAbduction = clamp((thumbSpan - 0.20) / 0.35, 0, 1);
+  const thumbExt = Number(clamp(0.6 * thumbAbduction + 0.4 * thumbStraightness, 0, 1).toFixed(4));
 
   const fingerExtensions: FingerExtensionState = {
     thumb: thumbExt,
@@ -1040,6 +1042,13 @@ export const DYNAMIC_SIGN_PROTOTYPES: Record<DynamicLescoSignId, Trajectory2DPoi
     { x: 0.5, y: 0.06 },
     { x: 1.0, y: 0.0 },
   ]),
+  CH: normalizeTrajectory2D([
+    { x: -0.9, y: 0.0 },
+    { x: -0.4, y: 0.02 },
+    { x: 0.0, y: 0.0 },
+    { x: 0.4, y: -0.02 },
+    { x: 0.9, y: 0.0 },
+  ]),
   HOLA: normalizeTrajectory2D([
     { x: -0.9, y: 0.2 },
     { x: -0.3, y: -0.35 },
@@ -1135,8 +1144,11 @@ function isHandshapeCompatibleWithDynamicSign(
       // Postura de L: índice y pulgar abiertos
       return ext.index > 0.55 && ext.thumb > 0.48 && ext.middle < 0.45 && ext.ring < 0.45;
     case 'RR':
-      // Índice y medio extendidos y juntos
-      return ext.index > 0.55 && ext.middle > 0.55 && pinch.indexToMiddleSpread < 0.35 && ext.ring < 0.48;
+      // Índice y medio extendidos y juntos (cruce R)
+      return ext.index > 0.55 && ext.middle > 0.55 && ext.ring < 0.48;
+    case 'CH':
+      // Índice y medio extendidos horizontales juntos (H)
+      return ext.index > 0.55 && ext.middle > 0.55 && ext.ring < 0.48;
     case 'Ñ':
       // Dedos flexionados hacia abajo (postura N)
       return ext.ring < 0.45 && ext.pinky < 0.45;

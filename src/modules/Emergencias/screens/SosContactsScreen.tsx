@@ -19,6 +19,7 @@ import {
   getPreciseGpsCoordinates,
   buildEmergencySosMessage,
   dispatchEmergencySosAlert,
+  dispatchSingleContactSms,
 } from '../services/emergencyLocationService';
 
 export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
@@ -59,8 +60,10 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
     haptics.light();
     if (onBackPress) {
       onBackPress();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace('/(tabs)');
     }
   };
 
@@ -74,20 +77,19 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
 
   const handleSms = async (phone: string, contactName?: string) => {
     haptics.emergency();
-    const targetContact: SosContact = {
-      id: 'target',
-      name: contactName || 'Contacto SOS',
-      phone,
-      relation: 'Familiar',
-      knowsLesco: true,
-      receivesSms: true,
-    };
-    const res = await dispatchEmergencySosAlert([targetContact], 'Auxilio inmediato', user?.name);
+    const res = await dispatchSingleContactSms(phone, contactName, user?.name, 'Auxilio inmediato');
     if (res.success) {
-      const serverMsg = res.dispatchedByServer
-        ? 'El servidor envió automáticamente la alerta con tu ubicación satelital.'
-        : 'Alerta preparada con tu ubicación GPS satelital.';
-      Alert.alert('✅ Alerta Enviada', `${serverMsg}\n\nDestinatario: ${phone}`);
+      if (res.dispatchedByServer) {
+        Alert.alert(
+          '✅ Alerta Enviada por Servidor',
+          `El servidor envió automáticamente la alerta con tu ubicación satelital a ${contactName || phone}.`
+        );
+      } else {
+        Alert.alert(
+          '📨 Mensajería SMS Abierta',
+          `Se abrió la mensajería SMS con tu ubicación satelital lista para enviar a ${contactName || phone}.\n\nPresiona "Enviar" en tu aplicación de mensajes.`
+        );
+      }
     } else {
       Alert.alert('Alerta SOS', res.error || 'No se pudo completar el despacho de auxilio.');
     }
@@ -242,7 +244,7 @@ export function SosContactsScreen({ onBackPress }: SosContactsScreenProps) {
 
                     <TouchableOpacity
                       style={styles.smsActionBtn}
-                      onPress={() => handleSms(contact.phone)}
+                      onPress={() => handleSms(contact.phone, contact.name)}
                       activeOpacity={0.8}
                       accessibilityLabel={`Enviar mensaje a ${contact.name}`}
                     >

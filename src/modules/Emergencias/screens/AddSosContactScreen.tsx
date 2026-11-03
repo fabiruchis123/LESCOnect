@@ -28,7 +28,11 @@ import { SosContact } from '../types/emergencias.types';
  * - Feedback visual inmediato
  * - Sin modales inline — flujo limpio en pantalla completa
  */
-export function AddSosContactScreen() {
+export interface AddSosContactScreenProps {
+  onBackPress?: () => void;
+}
+
+export function AddSosContactScreen({ onBackPress }: AddSosContactScreenProps = {}) {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const updateUser = useAuthStore((state) => state.updateUser);
@@ -67,7 +71,13 @@ export function AddSosContactScreen() {
 
   const handleBack = () => {
     haptics.light();
-    router.back();
+    if (onBackPress) {
+      onBackPress();
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
   };
 
   const handlePickFromAgenda = async () => {
@@ -111,7 +121,7 @@ export function AddSosContactScreen() {
 
     const updated = [...contacts, newContact];
     updateUser({ sosContacts: updated });
-    router.back();
+    handleBack();
   };
 
   const isLimitReached = contacts.length >= 5;

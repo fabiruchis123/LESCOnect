@@ -35,8 +35,10 @@ export function TextSizeScreen({ onBackPress }: TextSizeScreenProps) {
     haptics.light();
     if (onBackPress) {
       onBackPress();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace('/(tabs)');
     }
   };
 

@@ -185,8 +185,10 @@ BEGIN
     -- Buscar usuario asociado al número en profiles (o crearlo si no existe)
     SELECT * INTO v_user
     FROM public.profiles
-    WHERE telefono = v_clean_phone 
-       OR telefono = substring(v_clean_phone from '^\+506(.*)$')
+    WHERE phone = v_clean_phone 
+       OR phone = substring(v_clean_phone from '^\+506(.*)$')
+       OR replace(replace(phone, '-', ''), ' ', '') = regexp_replace(v_clean_phone, '[^0-9]', '', 'g')
+       OR replace(replace(phone, '-', ''), ' ', '') = substring(regexp_replace(v_clean_phone, '[^0-9]', '', 'g') from '506(.*)$')
     LIMIT 1;
 
     RETURN jsonb_build_object(

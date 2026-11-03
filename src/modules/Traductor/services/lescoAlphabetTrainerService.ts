@@ -73,13 +73,16 @@ function buildHandPose(params: {
   downwardAxis?: boolean; // apuntando hacia abajo (P, Q, M, N)
   circlePinch?: boolean; // O / C
   hookIndex?: boolean; // X
+  vSpread?: boolean; // Separación en V (V, K)
+  kThumbBetween?: boolean; // K: Pulgar asoma entre índice y medio
+  tThumbPoking?: boolean; // T: Pulgar asoma entre índice y medio en puño
 }): NormalizedLandmark3D[] {
   const pts: NormalizedLandmark3D[] = [];
 
   // Muñeca en el origen
   pts.push({ x: 0, y: 0, z: 0 });
 
-  // Base del pulgar y nudillos MCP
+  // Base del pulgar y nudillos MCP canónicos
   const mcpBase = [
     { x: -0.22, y: -0.25, z: -0.05 }, // 1: CMC pulgar
     { x: -0.15, y: -0.65, z: 0.0 },   // 5: MCP índice
@@ -90,26 +93,50 @@ function buildHandPose(params: {
 
   // 1-4: Pulgar
   const thSpread = params.thumbSpread * 0.28;
-  const thY = params.downwardAxis ? 0.2 : (params.thumbCross ? -0.45 : -0.25 - params.thumbExt * 0.35);
-  const thX = params.thumbCross ? 0.05 : -0.22 - thSpread;
+  let thX: number;
+  let thY: number;
+  let thZ = params.circlePinch ? 0.18 : 0.14;
+
+  const isDown = !!params.downwardAxis;
+  if (params.kThumbBetween) {
+    // K: Pulgar ubicado en la bifurcación entre índice y medio
+    thX = -0.08;
+    thY = -0.70;
+    thZ = 0.22;
+  } else if (params.tThumbPoking) {
+    // T: Pulgar asoma entre índice y medio en puño cerrado
+    thX = -0.08;
+    thY = -0.60;
+    thZ = 0.20;
+  } else if (isDown) {
+    // Descendente (P, Q, M, N): pulgar en plano frontal bajo MCPs
+    thX = params.thumbCross ? 0.02 : -0.18;
+    thY = -0.40;
+  } else if (params.thumbCross) {
+    // S / Puño cruzado
+    thX = 0.08;
+    thY = -0.45;
+  } else {
+    thX = -0.22 - thSpread;
+    thY = -0.25 - params.thumbExt * 0.35;
+  }
+
   pts.push(mcpBase[0]); // 1
   pts.push({ x: thX * 0.7, y: thY * 0.5, z: 0.08 }); // 2 MCP
   pts.push({ x: thX * 0.9, y: thY * 0.8, z: 0.12 }); // 3 IP
-  pts.push({ x: thX, y: thY, z: params.circlePinch ? 0.18 : 0.14 }); // 4 TIP
+  pts.push({ x: thX, y: thY, z: thZ }); // 4 TIP
 
   // Generador para dedos índice, medio, anular, meñique
   const fingerParams = [
-    { mcp: mcpBase[1], ext: params.indexExt, spread: -0.05, hook: params.hookIndex },
-    { mcp: mcpBase[2], ext: params.middleExt, spread: 0.0, hook: false },
+    { mcp: mcpBase[1], ext: params.indexExt, spread: params.vSpread ? -0.12 : (params.indexExt > 0.8 && params.middleExt > 0.8 ? 0.0 : -0.05), hook: params.hookIndex },
+    { mcp: mcpBase[2], ext: params.middleExt, spread: params.vSpread ? 0.12 : 0.0, hook: false },
     { mcp: mcpBase[3], ext: params.ringExt, spread: 0.04, hook: false },
     { mcp: mcpBase[4], ext: params.pinkyExt, spread: 0.09, hook: false },
   ];
 
   fingerParams.forEach((f, idx) => {
-    const isHorizontal = params.horizontalAxis && idx === 0;
+    const isHorizontal = params.horizontalAxis && (idx === 0 || (idx === 1 && params.middleExt > 0.5));
     const isDownward = params.downwardAxis;
-    const dirY = isDownward ? 1 : -1;
-    const dirX = isHorizontal ? 1 : 0;
 
     let lenPIP = 0.28;
     let lenDIP = 0.22;
@@ -117,9 +144,9 @@ function buildHandPose(params: {
 
     // Si el dedo está doblado / enrollado
     const bend = 1.0 - f.ext;
-    const pipY = f.mcp.y + (isDownward ? lenPIP : -lenPIP * f.ext);
-    const pipX = f.mcp.x + f.spread + (isHorizontal ? lenPIP : 0);
-    const pipZ = bend * 0.15;
+    let pipY = f.mcp.y + (isDownward ? lenPIP * f.ext : (isHorizontal ? 0 : -lenPIP * f.ext));
+    let pipX = f.mcp.x + f.spread + (isHorizontal ? lenPIP * f.ext : 0);
+    let pipZ = bend * 0.15;
 
     let dipY: number;
     let dipX: number;
@@ -143,20 +170,39 @@ function buildHandPose(params: {
       tipZ = 0.18;
     } else {
       // Dedo extendido
-      dipY = pipY + (isDownward ? lenDIP : -lenDIP * f.ext);
-      dipX = pipX + (isHorizontal ? lenDIP : 0);
-      tipY = dipY + (isDownward ? lenTIP : -lenTIP * f.ext);
-      tipX = dipX + (isHorizontal ? lenTIP : 0);
+      dipY = isHorizontal ? f.mcp.y : (pipY + (isDownward ? lenDIP * f.ext : -lenDIP * f.ext));
+      dipX = pipX + (isHorizontal ? lenDIP * f.ext : 0);
+      tipY = isHorizontal ? f.mcp.y : (dipY + (isDownward ? lenTIP * f.ext : -lenTIP * f.ext));
+      tipX = dipX + (isHorizontal ? lenTIP * f.ext : 0);
       if (params.indexCrossMiddle && idx === 0) {
-        tipX += 0.06; // Cruza sobre el medio (R)
+        tipX += 0.20; // Cruza claramente sobre el dedo medio (R)
+        tipZ = 0.18;
       }
     }
 
-    if (params.circlePinch && (idx === 0 || idx === 1)) {
-      // O / C: yemas convergen hacia el pulgar
-      tipX = -0.08 + idx * 0.04;
-      tipY = -0.55;
-      tipZ = 0.16;
+    if (params.circlePinch) {
+      const isIndexExtended = params.indexExt > 0.7;
+      const isMiddleExtended = params.middleExt > 0.7;
+
+      if (!isIndexExtended && isMiddleExtended && idx === 0) {
+        // En F: solo el índice hace pinza con el pulgar; medio, anular y meñique van arriba
+        tipX = -0.12;
+        tipY = -0.48;
+        tipZ = 0.16;
+      } else if (isIndexExtended && !isMiddleExtended && idx === 1) {
+        // En D: el índice va arriba y el medio hace pinza con el pulgar
+        tipX = -0.08;
+        tipY = -0.45;
+        tipZ = 0.16;
+      } else if (!isIndexExtended && !isMiddleExtended) {
+        // En O: los dedos forman un arco circular convergiendo hacia el pulgar
+        pipY = f.mcp.y - 0.15;
+        pipZ = 0.15;
+        dipY = pipY + 0.08;
+        tipX = -0.10 + idx * 0.04;
+        tipY = -0.42 + idx * 0.02;
+        tipZ = 0.18;
+      }
     }
 
     pts.push(f.mcp); // 5, 9, 13, 17
@@ -165,7 +211,8 @@ function buildHandPose(params: {
     pts.push({ x: tipX, y: tipY, z: tipZ }); // 8, 12, 16, 20
   });
 
-  return pts;
+  const norm = normalizeHandLandmarks(pts);
+  return norm ? norm.landmarks : pts;
 }
 
 // ── BANCO OFICIAL DE 30 LETRAS + 6 SEÑAS FRECUENTES ───────────────────────────
@@ -192,16 +239,16 @@ export const LESCO_ALPHABET_TEMPLATES: Record<LescoAlphabetSignId, LescoAlphabet
     isDynamic: false,
     primaryOrientation: 'horizontal',
     fingerExtensions: [0.5, 0.5, 0.5, 0.5, 0.5],
-    landmarks21: buildHandPose({ thumbExt: 0.6, thumbSpread: 0.8, circlePinch: true, indexExt: 0.5, middleExt: 0.5, ringExt: 0.5, pinkyExt: 0.5 }),
+    landmarks21: buildHandPose({ thumbExt: 0.6, thumbSpread: 0.8, circlePinch: false, indexExt: 0.5, middleExt: 0.5, ringExt: 0.5, pinkyExt: 0.5 }),
   },
   CH: {
     id: 'CH',
     name: 'Letra CH',
     isDynamic: true,
-    dynamicHint: 'Forma la C y traza un semicírculo o conecta suavemente hacia la H.',
+    dynamicHint: 'Índice y medio horizontales juntos desplazándose lateralmente.',
     primaryOrientation: 'horizontal',
-    fingerExtensions: [0.6, 0.6, 0.6, 0.4, 0.4],
-    landmarks21: buildHandPose({ thumbExt: 0.6, thumbSpread: 0.7, circlePinch: true, indexExt: 0.6, middleExt: 0.6, ringExt: 0.4, pinkyExt: 0.4 }),
+    fingerExtensions: [0.8, 1.0, 1.0, 0.0, 0.0],
+    landmarks21: buildHandPose({ thumbExt: 0.8, thumbSpread: 0.4, horizontalAxis: true, indexExt: 1.0, middleExt: 1.0, ringExt: 0.0, pinkyExt: 0.0 }),
   },
   D: {
     id: 'D',
@@ -216,8 +263,8 @@ export const LESCO_ALPHABET_TEMPLATES: Record<LescoAlphabetSignId, LescoAlphabet
     name: 'Letra E',
     isDynamic: false,
     primaryOrientation: 'arriba',
-    fingerExtensions: [0.2, 0.1, 0.1, 0.1, 0.1],
-    landmarks21: buildHandPose({ thumbExt: 0.2, thumbSpread: 0.0, thumbCross: true, indexExt: 0.15, middleExt: 0.15, ringExt: 0.15, pinkyExt: 0.15 }),
+    fingerExtensions: [0.3, 0.2, 0.2, 0.2, 0.2],
+    landmarks21: buildHandPose({ thumbExt: 0.3, thumbSpread: 0.2, thumbCross: false, indexExt: 0.2, middleExt: 0.2, ringExt: 0.2, pinkyExt: 0.2 }),
   },
   F: {
     id: 'F',
@@ -266,7 +313,7 @@ export const LESCO_ALPHABET_TEMPLATES: Record<LescoAlphabetSignId, LescoAlphabet
     isDynamic: false,
     primaryOrientation: 'arriba',
     fingerExtensions: [0.8, 1.0, 1.0, 0.0, 0.0],
-    landmarks21: buildHandPose({ thumbExt: 0.8, thumbSpread: 0.4, indexExt: 1.0, middleExt: 1.0, ringExt: 0.0, pinkyExt: 0.0 }),
+    landmarks21: buildHandPose({ thumbExt: 0.8, thumbSpread: 0.2, kThumbBetween: true, indexExt: 1.0, middleExt: 1.0, ringExt: 0.0, pinkyExt: 0.0, vSpread: true }),
   },
   L: {
     id: 'L',
@@ -315,8 +362,8 @@ export const LESCO_ALPHABET_TEMPLATES: Record<LescoAlphabetSignId, LescoAlphabet
     name: 'Letra O',
     isDynamic: false,
     primaryOrientation: 'frente',
-    fingerExtensions: [0.3, 0.3, 0.3, 0.3, 0.3],
-    landmarks21: buildHandPose({ thumbExt: 0.3, thumbSpread: 0.4, circlePinch: true, indexExt: 0.3, middleExt: 0.3, ringExt: 0.3, pinkyExt: 0.3 }),
+    fingerExtensions: [0.4, 0.4, 0.4, 0.4, 0.4],
+    landmarks21: buildHandPose({ thumbExt: 0.4, thumbSpread: 0.5, circlePinch: true, indexExt: 0.4, middleExt: 0.4, ringExt: 0.4, pinkyExt: 0.4 }),
   },
   P: {
     id: 'P',
@@ -365,7 +412,7 @@ export const LESCO_ALPHABET_TEMPLATES: Record<LescoAlphabetSignId, LescoAlphabet
     isDynamic: false,
     primaryOrientation: 'arriba',
     fingerExtensions: [0.4, 0.0, 0.0, 0.0, 0.0],
-    landmarks21: buildHandPose({ thumbExt: 0.4, thumbSpread: 0.2, thumbCross: true, indexExt: 0.0, middleExt: 0.0, ringExt: 0.0, pinkyExt: 0.0 }),
+    landmarks21: buildHandPose({ thumbExt: 0.4, thumbSpread: 0.2, tThumbPoking: true, indexExt: 0.0, middleExt: 0.0, ringExt: 0.0, pinkyExt: 0.0 }),
   },
   U: {
     id: 'U',
@@ -381,7 +428,7 @@ export const LESCO_ALPHABET_TEMPLATES: Record<LescoAlphabetSignId, LescoAlphabet
     isDynamic: false,
     primaryOrientation: 'arriba',
     fingerExtensions: [0.2, 1.0, 1.0, 0.0, 0.0],
-    landmarks21: buildHandPose({ thumbExt: 0.2, thumbSpread: 0.0, thumbCross: true, indexExt: 1.0, middleExt: 1.0, ringExt: 0.0, pinkyExt: 0.0 }),
+    landmarks21: buildHandPose({ thumbExt: 0.2, thumbSpread: 0.0, thumbCross: true, indexExt: 1.0, middleExt: 1.0, ringExt: 0.0, pinkyExt: 0.0, vSpread: true }),
   },
   W: {
     id: 'W',
@@ -549,7 +596,7 @@ export function classifyTrainedAlphabetLesco(
   const ext = bioFeatures.fingerExtensions;
 
   // ── DESAMBIGUACIONES ESPECÍFICAS LESCO ─────────────────────────────────────
-  // 1. Detección de orientación vertical/descendente/horizontal
+  // 1. Detección de orientación vertical/descendente/horizontal usando scaleNormalizedLandmarks (no derotadas)
   const wrist = normalized.landmarks[0];
   const middleMcp = normalized.landmarks[9];
   const indexTip = normalized.landmarks[8];
@@ -557,10 +604,14 @@ export function classifyTrainedAlphabetLesco(
   const thumbTip = normalized.landmarks[4];
   const pinkyTip = normalized.landmarks[20];
 
-  const dyIndex = indexTip.y - middleMcp.y;
-  const dxIndex = indexTip.x - middleMcp.x;
-  const isIndexHorizontal = Math.abs(dxIndex) > Math.abs(dyIndex) * 0.9;
-  const isHandDownward = indexTip.y > wrist.y && middleTip.y > wrist.y;
+  const rawMiddleMcp = normalized.scaleNormalizedLandmarks[9];
+  const rawIndexTip = normalized.scaleNormalizedLandmarks[8];
+  const rawMiddleTip = normalized.scaleNormalizedLandmarks[12];
+
+  const dxIndexRaw = rawIndexTip.x - rawMiddleMcp.x;
+  const dyIndexRaw = rawIndexTip.y - rawMiddleMcp.y;
+  const isIndexHorizontal = Math.abs(dxIndexRaw) > Math.abs(dyIndexRaw) * 1.35;
+  const isHandDownward = rawMiddleMcp.y > 0.25 || (rawIndexTip.y > 0.2 && rawMiddleTip.y > 0.2);
 
   // Puños compactos (todos los dedos flexionados < 0.25)
   const isFist = ext.index < 0.25 && ext.middle < 0.25 && ext.ring < 0.25 && ext.pinky < 0.25;

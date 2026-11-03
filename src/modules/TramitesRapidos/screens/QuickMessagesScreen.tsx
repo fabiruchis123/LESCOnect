@@ -16,7 +16,11 @@ import { TRAMITES_CATEGORIES } from '../services/tramitesData';
 import { TramiteCategory, TramiteSituation } from '../types';
 import { styles } from '../styles/tramites.styles';
 
-export function QuickMessagesScreen() {
+export interface QuickMessagesScreenProps {
+  onBackPress?: () => void;
+}
+
+export function QuickMessagesScreen({ onBackPress }: QuickMessagesScreenProps = {}) {
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string }>();
 
@@ -64,6 +68,21 @@ export function QuickMessagesScreen() {
     setSelectedSituation(null);
   };
 
+  const handleBack = () => {
+    haptics.light();
+    if (selectedSituation) {
+      setSelectedSituation(null);
+    } else if (selectedCategory) {
+      setSelectedCategory(null);
+    } else if (onBackPress) {
+      onBackPress();
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
   const handleSpeak = (text: string) => {
     haptics.medium();
     speechService.speak(text);
@@ -102,12 +121,14 @@ export function QuickMessagesScreen() {
           <View>
             <View style={styles.headerNavRow}>
               <TouchableOpacity
-                onPress={() => router.push('/(tabs)')}
+                onPress={handleBack}
                 style={styles.backButton}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Volver"
               >
                 <Text style={styles.backButtonArrow}>←</Text>
-                <Text style={styles.backButtonText}>Volver a Inicio</Text>
+                <Text style={styles.backButtonText}>Volver</Text>
               </TouchableOpacity>
             </View>
 

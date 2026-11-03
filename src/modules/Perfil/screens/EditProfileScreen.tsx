@@ -21,6 +21,7 @@ import {
   ContactPickerModal,
   PhoneContact,
   formatCRPhone,
+  otpService,
 } from '@/modules/Auth';
 
 interface EditProfileScreenProps {
@@ -66,8 +67,10 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
     haptics.light();
     if (onBackPress) {
       onBackPress();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace('/(tabs)');
     }
   };
 
@@ -164,7 +167,9 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
     const cleanApellidos = apellidos.trim();
     const fullName = `${cleanNombre} ${cleanApellidos}`.trim();
 
-    updateUser({
+    const updatedUserObj = {
+      ...(user || {}),
+      id: user?.id || Date.now().toString(),
       name: fullName,
       nombre: cleanNombre,
       apellidos: cleanApellidos,
@@ -177,7 +182,10 @@ export function EditProfileScreen({ onBackPress }: EditProfileScreenProps) {
       contactoEmergenciaParentesco: emergencyContactRelation,
       contactoEmergenciaSabeLesco: emergencyContactKnowsLesco,
       sosContacts: updatedSosList,
-    });
+    };
+
+    updateUser(updatedUserObj);
+    void otpService.syncProfileNonBlocking(updatedUserObj);
 
     Alert.alert('Perfil Actualizado', 'Tus datos fueron guardados exitosamente.', [
       { text: 'Aceptar', onPress: handleBack },

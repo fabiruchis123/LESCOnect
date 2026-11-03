@@ -1,4 +1,3 @@
-import { Linking } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore, User, SosContactItem } from '@/shared/stores/useAuthStore';
 import {
@@ -23,7 +22,7 @@ interface ActiveOtpRecord {
   lastSentAt: number;
   attempts: number;
   lockedUntil: number;
-  channel: 'supabase' | 'assisted_local';
+  channel: 'supabase' | 'assisted_local' | 'local_gateway' | 'sim_sms' | 'whatsapp';
 }
 
 // Almacenamiento efímero en memoria (nunca en AsyncStorage ni logs por seguridad)
@@ -71,18 +70,6 @@ export function extractOtpFromText(rawText: string): string {
   return rawText.replace(/\D/g, '').slice(0, 6);
 }
 
-/**
- * Genera un código numérico aleatorio de 6 dígitos (100000 - 999999).
- */
-function generateSixDigitCode(): string {
-  const array = new Uint32Array(1);
-  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
-    globalThis.crypto.getRandomValues(array);
-    const num = 100000 + (array[0] % 900000);
-    return String(num);
-  }
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
 
 /**
  * Comparación en tiempo constante para evitar ataques de timing.
@@ -154,40 +141,80 @@ export const otpService = {
       }
     }
 
-    const generatedCode = generateSixDigitCode();
     const expiresAt = now + OTP_TTL_MS;
-    let channel: 'supabase' | 'assisted_local' = 'assisted_local';
+    let channel: 'supabase' | 'assisted_local' | 'local_gateway' | 'sim_sms' | 'whatsapp' = 'assisted_local';
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let serverDispatchedCode: string | undefined = undefined;
 
-    try {
-      const timeoutPromise = new Promise<{ error: Error }>((resolve) => {
-        timeoutId = setTimeout(() => resolve({ error: new Error('timeout') }), 8000);
-      });
+    const gatewayUrl = (process.env.EXPO_PUBLIC_OTP_GATEWAY_URL || '').replace(/\/+$/, '');
 
-      const supabasePromise = supabase.auth.signInWithOtp({
-        phone: normalizedPhone,
-      });
+    // 1. Si hay una pasarela local/remota configurada (SIM física Android o túnel Cloudflare), enviar solicitud.
+    // El servidor es la ÚNICA fuente de verdad que genera el código real de 6 dígitos y lo envía por SMS.
+    if (gatewayUrl) {
+      try {
+        const controller = new AbortController();
+        const gwTimeout = setTimeout(() => controller.abort(), 7000);
+        const gwResponse = await fetch(`${gatewayUrl}/api/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: normalizedPhone }),
+          signal: controller.signal,
+        });
+        clearTimeout(gwTimeout);
 
-      // Llamada paralela al servicio SMS del servidor para envío automático
-      supabase.functions.invoke('send-sms-otp', {
-        body: { phone: normalizedPhone, code: generatedCode },
-      }).catch(() => {});
+        if (gwResponse.ok) {
+          const gwData = await gwResponse.json();
+          if (gwData.success) {
+            channel =
+              gwData.channel === 'sim_sms'
+                ? 'sim_sms'
+                : gwData.channel === 'whatsapp'
+                ? 'whatsapp'
+                : 'local_gateway';
 
-      const result = await Promise.race([supabasePromise, timeoutPromise]);
-      if (!result.error) {
-        channel = 'supabase';
+            // El código real generado por el servidor y despachado en el SMS (si el servidor lo reporta)
+            if (gwData.code && typeof gwData.code === 'string' && /^\d{6}$/.test(gwData.code.trim())) {
+              serverDispatchedCode = gwData.code.trim();
+            }
+          }
+        }
+      } catch {
+        // Fallback transparente a Supabase / detector si la pasarela no responde
       }
-    } catch {
-      // Fallback limpio al detector asistido local
-      channel = 'assisted_local';
-    } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+    }
+
+    // 2. Si no se usó la pasarela física o no está configurada, intentar Supabase Auth
+    if (channel === 'assisted_local') {
+      try {
+        const timeoutPromise = new Promise<{ error: Error }>((resolve) => {
+          timeoutId = setTimeout(() => resolve({ error: new Error('timeout') }), 8000);
+        });
+
+        const supabasePromise = supabase.auth.signInWithOtp({
+          phone: normalizedPhone,
+        });
+
+        // Llamada paralela al servicio SMS del servidor para envío automático (sin inventar códigos locales)
+        supabase.functions.invoke('send-sms-otp', {
+          body: { phone: normalizedPhone },
+        }).catch(() => {});
+
+        const result = await Promise.race([supabasePromise, timeoutPromise]);
+        if (!result.error) {
+          channel = 'supabase';
+        }
+      } catch {
+        // Fallback limpio al detector asistido local
+        channel = 'assisted_local';
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
       }
     }
 
     otpStore.set(normalizedPhone, {
-      code: generatedCode,
+      code: serverDispatchedCode || '',
       normalizedPhone,
       displayPhone,
       expiresAt,
@@ -202,7 +229,7 @@ export const otpService = {
       normalizedPhone,
       displayPhone,
       channel,
-      incomingSmsCode: generatedCode,
+      incomingSmsCode: serverDispatchedCode,
       expiresAt,
       cooldownSeconds: Math.ceil(RESEND_COOLDOWN_MS / 1000),
     };
@@ -252,8 +279,69 @@ export const otpService = {
       };
     }
 
-    // 1. Verificar contra código asistido o Supabase Auth
-    const matchesAssisted = timingSafeEqualStr(cleanCode, record.code);
+    const gatewayUrl = (process.env.EXPO_PUBLIC_OTP_GATEWAY_URL || '').replace(/\/+$/, '');
+
+    // 1. Verificación directa contra el Gateway HTTP si está configurado
+    if (gatewayUrl) {
+      try {
+        const controller = new AbortController();
+        const gwTimeout = setTimeout(() => controller.abort(), 6000);
+        const gwResponse = await fetch(`${gatewayUrl}/api/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: normalizedPhone, code: cleanCode }),
+          signal: controller.signal,
+        });
+        clearTimeout(gwTimeout);
+
+        const gwData = await gwResponse.json().catch(() => null);
+
+        if (gwResponse.ok && gwData?.success) {
+          otpStore.delete(normalizedPhone);
+          otpRateLimiter.recordSuccess();
+          return {
+            success: true,
+            token: `lesconect-gateway-verified-${Date.now()}`,
+          };
+        } else if (gwResponse.status === 400 && gwData && gwData.success === false) {
+          // El gateway rechazó el código explícitamente (ej. código incorrecto o expirado)
+          record.attempts += 1;
+          const limiterResult = otpRateLimiter.recordFailure(now);
+          const remainingAttempts =
+            typeof gwData.remainingAttempts === 'number'
+              ? gwData.remainingAttempts
+              : Math.min(Math.max(0, MAX_VERIFY_ATTEMPTS - record.attempts), limiterResult.remainingAttempts);
+
+          if (record.attempts >= MAX_VERIFY_ATTEMPTS || remainingAttempts <= 0 || limiterResult.isLocked) {
+            record.lockedUntil = now + LOCKOUT_DURATION_MS;
+            const lockedSeconds = Math.max(
+              Math.ceil(LOCKOUT_DURATION_MS / 1000),
+              limiterResult.cooldownSeconds
+            );
+            return {
+              success: false,
+              remainingAttempts: 0,
+              lockedSeconds,
+              error: gwData.error || `Demasiados intentos incorrectos. Bloqueado por ${lockedSeconds} segundos.`,
+            };
+          }
+
+          return {
+            success: false,
+            remainingAttempts,
+            error: gwData.error || `Código incorrecto. Te quedan ${remainingAttempts} intento(s).`,
+          };
+        }
+      } catch {
+        // Fallback transparente a Supabase / almacenamiento local si el gateway no responde o hay fallo de red
+      }
+    }
+
+    // 2. Fallback: Verificar contra código confirmado por el servidor o Supabase Auth
+    const matchesAssisted =
+      record.code && record.code.length === 6
+        ? timingSafeEqualStr(cleanCode, record.code)
+        : false;
 
     if (record.channel === 'supabase' && !matchesAssisted) {
       try {
@@ -318,6 +406,41 @@ export const otpService = {
   },
 
   /**
+   * Convierte una fecha en formato DD/MM/AAAA a formato ISO YYYY-MM-DD para Supabase Postgres.
+   */
+  toIsoBirthDate(dateStr?: string | null): string | null {
+    if (!dateStr) return null;
+    const trimmed = dateStr.trim();
+    const m = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      const day = m[1].padStart(2, '0');
+      const month = m[2].padStart(2, '0');
+      const year = m[3];
+      return `${year}-${month}-${day}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    return null;
+  },
+
+  /**
+   * Convierte una fecha ISO YYYY-MM-DD proveniente de Postgres al formato de UI DD/MM/AAAA.
+   */
+  toDisplayBirthDate(isoDate?: string | null): string | undefined {
+    if (!isoDate) return undefined;
+    const trimmed = isoDate.trim();
+    const m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      return `${m[3]}/${m[2]}/${m[1]}`;
+    }
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed)) {
+      return trimmed;
+    }
+    return undefined;
+  },
+
+  /**
    * Busca de forma síncrona una cuenta en el directorio persistente local (por teléfono o cédula).
    */
   findLocalRegisteredAccount(identifier: string): User | null {
@@ -326,7 +449,7 @@ export const otpService = {
 
   /**
    * Resuelve una cuenta registrada combinando el directorio persistente local (`useAuthStore`)
-   * y una consulta rápida no bloqueante a `public.profiles` en Supabase (por `phone`/`telefono` o `cedula`/`national_id`).
+   * y una consulta rápida no bloqueante a `public.profiles` en Supabase (por `phone` o `national_id`).
    */
   async resolveRegisteredAccount(identifier: string): Promise<User | null> {
     const localAccount = useAuthStore.getState().findRegisteredUser(identifier);
@@ -343,12 +466,15 @@ export const otpService = {
 
         let query = supabase.from('profiles').select('*');
         if (phoneCheck.isValid) {
+          const digits = phoneCheck.digits;
+          const e164 = `+506${digits}`;
           query = query.or(
-            `phone.eq.${formattedPhone},phone.eq.${phoneCheck.digits},telefono.eq.${formattedPhone},telefono.eq.${phoneCheck.digits}`
+            `phone.eq.${formattedPhone},phone.eq.${digits},phone.eq.${e164}`
           );
         } else if (cedulaCheck.isValid) {
+          const digits = cedulaCheck.digits;
           query = query.or(
-            `national_id.eq.${formattedCedula},national_id.eq.${cedulaCheck.digits},cedula.eq.${formattedCedula},cedula.eq.${cedulaCheck.digits}`
+            `national_id.eq.${formattedCedula},national_id.eq.${digits}`
           );
         } else {
           return null;
@@ -358,20 +484,33 @@ export const otpService = {
         if (error || !data) return null;
 
         const row = data as Record<string, unknown>;
-        const nombre = typeof row.nombre === 'string' ? row.nombre : '';
-        const apellidos = typeof row.apellidos === 'string' ? row.apellidos : '';
         const fullName =
           (typeof row.full_name === 'string' && row.full_name) ||
-          `${nombre} ${apellidos}`.trim() ||
-          nombre;
+          (typeof row.name === 'string' && row.name) ||
+          '';
+        const nameParts = fullName.trim().split(/\s+/);
+        const nombre =
+          (typeof row.nombre === 'string' && row.nombre) ||
+          nameParts[0] ||
+          '';
+        const apellidos =
+          (typeof row.apellidos === 'string' && row.apellidos) ||
+          [row.first_surname, row.second_surname].filter(Boolean).join(' ') ||
+          nameParts.slice(1).join(' ') ||
+          '';
         const tel =
           (typeof row.phone === 'string' && row.phone) ||
-          (typeof row.telefono === 'string' && row.telefono) ||
           formattedPhone;
         const ced =
           (typeof row.national_id === 'string' && row.national_id) ||
-          (typeof row.cedula === 'string' && row.cedula) ||
           formattedCedula;
+
+        const birthDateVal =
+          typeof row.birth_date === 'string'
+            ? otpService.toDisplayBirthDate(row.birth_date)
+            : typeof row.fecha_nacimiento === 'string'
+            ? otpService.toDisplayBirthDate(row.fecha_nacimiento)
+            : undefined;
 
         const remoteSos: SosContactItem[] = [];
         const ceTel =
@@ -412,21 +551,12 @@ export const otpService = {
           cedula: ced || undefined,
           phone: tel || undefined,
           telefono: tel || undefined,
-          fechaNacimiento:
-            typeof row.fecha_nacimiento === 'string'
-              ? row.fecha_nacimiento
-              : undefined,
+          fechaNacimiento: birthDateVal,
           contactoEmergencia: ceTel || undefined,
           emergencyContact: ceTel || undefined,
           contactoEmergenciaNombre: ceNom || undefined,
-          contactoEmergenciaParentesco:
-            typeof row.contacto_emergencia_parentesco === 'string'
-              ? row.contacto_emergencia_parentesco
-              : undefined,
-          contactoEmergenciaSabeLesco:
-            typeof row.contacto_emergencia_sabe_lesco === 'boolean'
-              ? row.contacto_emergencia_sabe_lesco
-              : undefined,
+          contactoEmergenciaParentesco: ceRel || undefined,
+          contactoEmergenciaSabeLesco: ceLesco,
           sosContacts: remoteSos.length > 0 ? remoteSos : undefined,
         };
       })();
@@ -514,25 +644,32 @@ export const otpService = {
 
   /**
    * Sincroniza de forma no bloqueante los datos del perfil en public.profiles si existe sesión activa en Supabase.
+   * Transforma correctamente fechas a formato ISO (YYYY-MM-DD) y mapea los campos con las columnas de PostgreSQL.
    */
   async syncProfileNonBlocking(user: User): Promise<void> {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
-      const authUid = sessionData?.session?.user?.id || (user.id && user.id.length > 20 ? user.id : undefined);
-      if (!authUid) return;
+      const rawUid = sessionData?.session?.user?.id || (user.id && user.id.length > 20 ? user.id : undefined);
+      if (!rawUid) return;
+
+      // Supabase profiles.id es de tipo UUID. Validar formato para evitar errores de sintaxis en Postgres
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawUid);
+      if (!isUuid) return;
 
       const fullName = sanitizeText(
         user.name || `${user.nombre || ''} ${user.apellidos || ''}`.trim() || 'Usuario LESCOnect',
         120
       );
 
+      const isoBirthDate = otpService.toIsoBirthDate(user.fechaNacimiento);
+
       await supabase.from('profiles').upsert(
         {
-          id: authUid,
+          id: rawUid,
           full_name: fullName,
-          national_id: sanitizeText(user.cedula || '', 20),
-          phone: sanitizeText(user.telefono || user.phone || '', 20),
-          birth_date: user.fechaNacimiento ? sanitizeText(user.fechaNacimiento, 20) : null,
+          national_id: sanitizeText(user.cedula || '', 20) || null,
+          phone: sanitizeText(user.telefono || user.phone || '', 20) || null,
+          birth_date: isoBirthDate,
           emergency_contact_name: user.contactoEmergenciaNombre
             ? sanitizeText(user.contactoEmergenciaNombre, 100)
             : user.sosContacts?.[0]?.name || null,

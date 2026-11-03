@@ -173,14 +173,241 @@ export function buildEmergencySosMessage(
 }
 
 /**
- * Despacho automático de emergencia por SERVIDOR:
- * El servidor en la nube transmite los mensajes SMS a todos los contactos SOS
- * registrados en la red del usuario con las coordenadas GPS satelitales en segundo plano.
- * 
- * NOTA DE SEGURIDAD Y CUMPLIMIENTO:
- * No se despacha a la central 9-1-1 directamente, dado que el canal oficial requiere
- * homologación y estructura formal con las autoridades. Las alertas van dirigidas
- * exclusivamente a los contactos de auxilio de confianza del usuario.
+ * Abre de forma segura y robusta la aplicación de mensajería SMS nativa
+ * del sistema operativo con el destinatario o destinatarios y el mensaje prellenado.
+ *
+ * Formato estándar según plataforma:
+ * - Android: sms:<telefonos>?body=<mensaje>
+ * - iOS: sms:<telefonos>&body=<mensaje>
+ */
+export async function openEmergencySmsFallback(
+  recipients: string | string[],
+  message: string
+): Promise<boolean> {
+  try {
+    const list = (Array.isArray(recipients) ? recipients : [recipients])
+      .map((p) => p.replace(/[^0-9+]/g, ''))
+      .filter((p) => p.replace(/[^0-9]/g, '').length >= 8);
+
+    if (list.length === 0) return false;
+
+    const isIos = Platform.OS === 'ios';
+    const separator = isIos ? '&' : '?';
+    // iOS usa coma para separar múltiples teléfonos, Android soporta coma o punto y coma
+    const recipientStr = list.join(isIos ? ',' : ';');
+    const smsUrl = `sms:${recipientStr}${separator}body=${encodeURIComponent(message)}`;
+
+    try {
+      await Linking.openURL(smsUrl);
+      return true;
+    } catch {
+      // Si la app nativa de SMS falla al procesar la lista múltiple, intentar con el primer número
+      const singleUrl = `sms:${list[0]}${separator}body=${encodeURIComponent(message)}`;
+      await Linking.openURL(singleUrl);
+      return true;
+    }
+  } catch (err) {
+    console.warn('[emergencyLocationService] Error abriendo cliente SMS nativo:', err);
+    return false;
+  }
+}
+
+/**
+ * Intenta enviar la alerta de auxilio a través de los canales de servidor:
+ * 1. Pasarela física Android GSM / WhatsApp (si EXPO_PUBLIC_OTP_GATEWAY_URL está activa).
+ * 2. Supabase Edge Function 'dispatch-emergency-sos'.
+ *
+ * Criterio de Seguridad Estricto:
+ * Solo retorna `true` si el servidor responde con status 200/202 y confirmación { success: true }
+ * dentro del límite de 3 segundos. Nunca asume éxito sin respuesta verificada.
+ */
+async function attemptServerDispatch(
+  phones: string[],
+  message: string,
+  userName?: string,
+  categoryTitle?: string,
+  coords?: GpsCoordinates | null
+): Promise<boolean> {
+  const gatewayUrl = (
+    process.env.EXPO_PUBLIC_OTP_GATEWAY_URL ||
+    process.env.SIM_GATEWAY_URL ||
+    ''
+  ).replace(/\/+$/, '');
+
+  // 1. Intento por Pasarela Local / Cloud (SIM física GSM o WhatsApp)
+  if (gatewayUrl) {
+    try {
+      const controller = new AbortController();
+      const gwTimeout = setTimeout(() => controller.abort(), 3000);
+
+      const gwPromises = phones.map((p) =>
+        fetch(`${gatewayUrl}/api/send-sms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: p, message }),
+          signal: controller.signal,
+        })
+      );
+
+      const results = await Promise.allSettled(gwPromises);
+      clearTimeout(gwTimeout);
+
+      let anySuccess = false;
+      for (const res of results) {
+        if (res.status === 'fulfilled' && res.value.ok) {
+          try {
+            const data = await res.value.json();
+            if (data?.success === true) {
+              anySuccess = true;
+              break;
+            }
+          } catch {
+            // Ignorar error al parsear JSON
+          }
+        }
+      }
+
+      if (anySuccess) {
+        return true;
+      }
+    } catch {
+      // Si la pasarela local no responde, continuar con Edge Function
+    }
+  }
+
+  // 2. Intento por Supabase Edge Function + Registro de Auditoría
+  try {
+    const payload = {
+      senderName: userName || 'Usuario LESCOnect',
+      emergencyCategory: categoryTitle || 'Alerta de Auxilio SOS',
+      coordinates: coords
+        ? {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            accuracy: coords.accuracy,
+            googleMapsUrl: coords.googleMapsUrl,
+          }
+        : null,
+      recipients: phones,
+      messageText: message,
+      timestamp: new Date().toISOString(),
+    };
+
+    const edgeFunctionCall = supabase.functions.invoke('dispatch-emergency-sos', {
+      body: payload,
+    });
+
+    // Auditoría en base de datos en segundo plano
+    (async () => {
+      try {
+        await supabase.from('emergency_alerts').insert({
+          user_name: userName || 'Persona Sorda',
+          category: categoryTitle || 'SOS',
+          latitude: coords?.latitude || null,
+          longitude: coords?.longitude || null,
+          accuracy_meters: coords?.accuracy || null,
+          maps_url: coords?.googleMapsUrl || null,
+          recipients: phones,
+          message_text: message,
+          status: 'attempted',
+        });
+      } catch {
+        // Ignorar fallo de auditoría
+      }
+    })();
+
+    // Timeout estricto de 3 segundos para garantizar rapidez de auxilio
+    const timeoutPromise = new Promise<{ timeout: true }>((resolve) =>
+      setTimeout(() => resolve({ timeout: true }), 3000)
+    );
+
+    const raceResult = await Promise.race([edgeFunctionCall, timeoutPromise]);
+
+    if ('data' in raceResult && !raceResult.error && raceResult.data) {
+      const data = raceResult.data;
+      if (data.success === true || data.status === 'success') {
+        return true;
+      }
+    }
+  } catch {
+    // Falla la conexión a la nube
+  }
+
+  return false;
+}
+
+/**
+ * Despacha un mensaje de auxilio SOS a un contacto individual específico.
+ * 1. Obtiene las coordenadas GPS satelitales en tiempo real.
+ * 2. Construye el mensaje con enlace satelital de Google Maps.
+ * 3. Intenta el despacho por servidor/pasarela con timeout de 3 segundos.
+ * 4. Si el servidor no responde o no confirma entrega real, abre de inmediato
+ *    la aplicación de mensajería SMS nativa con el texto prellenado.
+ */
+export async function dispatchSingleContactSms(
+  phone: string,
+  contactName?: string,
+  senderName?: string,
+  categoryTitle?: string
+): Promise<EmergencyDispatchResult> {
+  const cleanPhone = phone.replace(/[^0-9+]/g, '');
+  if (!cleanPhone || cleanPhone.replace(/[^0-9]/g, '').length < 8) {
+    return {
+      success: false,
+      dispatchedByServer: false,
+      dispatchedContactsCount: 0,
+      phoneNumbers: [],
+      message: '',
+      coords: null,
+      error: 'El número telefónico no es válido o tiene menos de 8 dígitos.',
+    };
+  }
+
+  // 1. Obtener coordenadas GPS exactas
+  const coords = await getPreciseGpsCoordinates();
+
+  // 2. Construir mensaje de auxilio
+  const reason = categoryTitle || (contactName ? `Auxilio para ${contactName}` : 'Auxilio inmediato');
+  const message = buildEmergencySosMessage(coords, reason, senderName);
+
+  // 3. Intento de despacho por servidor (timeout de 3s)
+  const serverDispatched = await attemptServerDispatch(
+    [cleanPhone],
+    message,
+    senderName,
+    reason,
+    coords
+  );
+
+  if (serverDispatched) {
+    return {
+      success: true,
+      dispatchedByServer: true,
+      dispatchedContactsCount: 1,
+      phoneNumbers: [cleanPhone],
+      message,
+      coords,
+    };
+  }
+
+  // 4. Fallback inmediato: Abrir cliente SMS nativo
+  const opened = await openEmergencySmsFallback(cleanPhone, message);
+
+  return {
+    success: opened,
+    dispatchedByServer: false,
+    dispatchedContactsCount: opened ? 1 : 0,
+    phoneNumbers: [cleanPhone],
+    message,
+    coords,
+    error: opened ? undefined : 'No se pudo abrir la aplicación de mensajería SMS.',
+  };
+}
+
+/**
+ * Despacho de emergencia SOS a toda la Red de Contactos:
+ * Intenta el envío por servidor/pasarela en segundo plano; si no hay
+ * confirmación real 200 en 3 segundos, abre la mensajería SMS nativa.
  */
 export async function dispatchEmergencySosAlert(
   contacts: SosContact[],
@@ -210,56 +437,16 @@ export async function dispatchEmergencySosAlert(
   // 3. Construir mensaje de auxilio con coordenadas y enlace satelital
   const message = buildEmergencySosMessage(coords, categoryTitle, userName);
 
-  let serverDispatched = false;
+  // 4. Intento de despacho por servidor (timeout de 3s)
+  const serverDispatched = await attemptServerDispatch(
+    targetPhones,
+    message,
+    userName,
+    categoryTitle,
+    coords
+  );
 
-  // 4. Envío automático por servidor en la nube (Supabase Edge Function + Registro DB)
-  try {
-    const payload = {
-      senderName: userName || 'Usuario LESCOnect',
-      emergencyCategory: categoryTitle || 'Alerta de Auxilio SOS',
-      coordinates: coords
-        ? {
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            accuracy: coords.accuracy,
-            googleMapsUrl: coords.googleMapsUrl,
-          }
-        : null,
-      recipients: targetPhones,
-      messageText: message,
-      timestamp: new Date().toISOString(),
-    };
-
-    // Invocar función serverless para envío automático de SMS por servidor
-    const edgeFunctionCall = supabase.functions.invoke('dispatch-emergency-sos', {
-      body: payload,
-    });
-
-    // Registrar en tabla de alertas de emergencia
-    const logCall = supabase.from('emergency_alerts').insert({
-      user_name: userName || 'Persona Sorda',
-      category: categoryTitle || 'SOS',
-      latitude: coords?.latitude || null,
-      longitude: coords?.longitude || null,
-      accuracy_meters: coords?.accuracy || null,
-      maps_url: coords?.googleMapsUrl || null,
-      recipients: targetPhones,
-      message_text: message,
-      status: 'dispatched_by_server',
-    });
-
-    // Timeout de 4s para no demorar la respuesta de auxilio
-    const timeoutPromise = new Promise<{ timeout: true }>((resolve) =>
-      setTimeout(() => resolve({ timeout: true }), 4000)
-    );
-
-    await Promise.race([Promise.allSettled([edgeFunctionCall, logCall]), timeoutPromise]);
-    serverDispatched = true;
-  } catch {
-    serverDispatched = false;
-  }
-
-  // 5. Si el servidor procesó el envío, retornar éxito automático por servidor
+  // 5. Si el servidor confirmó el envío con éxito real
   if (serverDispatched) {
     return {
       success: true,
@@ -271,35 +458,17 @@ export async function dispatchEmergencySosAlert(
     };
   }
 
-  // 6. Fallback de contingencia (si el dispositivo está 100% offline o sin datos):
-  // Abrir la interfaz SMS como respaldo satelital hacia los contactos registrados
-  try {
-    const separator = Platform.OS === 'ios' ? '&' : '?';
-    const recipientList = targetPhones.join(Platform.OS === 'ios' ? ',' : ';');
-    const smsUrl = `sms:${recipientList}${separator}body=${encodeURIComponent(message)}`;
+  // 6. Fallback de contingencia:
+  // Abrir la interfaz SMS nativa hacia los contactos registrados
+  const opened = await openEmergencySmsFallback(targetPhones, message);
 
-    const canOpen = await Linking.canOpenURL(smsUrl).catch(() => false);
-    if (canOpen) {
-      await Linking.openURL(smsUrl);
-    }
-
-    return {
-      success: true,
-      dispatchedByServer: false,
-      dispatchedContactsCount: activeContacts.length,
-      phoneNumbers: targetPhones,
-      message,
-      coords,
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      dispatchedByServer: false,
-      dispatchedContactsCount: 0,
-      phoneNumbers: targetPhones,
-      message,
-      coords,
-      error: err?.message || 'Error transmitiendo alerta.',
-    };
-  }
+  return {
+    success: opened,
+    dispatchedByServer: false,
+    dispatchedContactsCount: opened ? activeContacts.length : 0,
+    phoneNumbers: targetPhones,
+    message,
+    coords,
+    error: opened ? undefined : 'No se pudo abrir la aplicación de mensajería SMS.',
+  };
 }

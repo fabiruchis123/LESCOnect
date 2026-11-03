@@ -31,8 +31,10 @@ export function VibrationScreen({ onBackPress }: VibrationScreenProps) {
     haptics.light();
     if (onBackPress) {
       onBackPress();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace('/(tabs)');
     }
   };
 

@@ -34,7 +34,7 @@ export interface OtpSendResult {
   success: boolean;
   normalizedPhone: string;
   displayPhone: string;
-  channel: 'supabase' | 'assisted_local';
+  channel: 'supabase' | 'assisted_local' | 'local_gateway' | 'sim_sms' | 'whatsapp';
   /** Código de 6 dígitos recibido en el dispositivo para autocompletado asistido sin salir de la app */
   incomingSmsCode?: string;
   expiresAt: number;

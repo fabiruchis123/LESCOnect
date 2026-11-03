@@ -136,10 +136,13 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
                 : '';
               const deliveryNote = res.dispatchedByServer
                 ? 'El servidor transmitió automáticamente el mensaje con tus coordenadas satelitales en segundo plano.'
-                : 'Se preparó el mensaje con tus coordenadas satelitales.';
+                : 'Se abrió la mensajería SMS con tu ubicación satelital lista para enviar.';
+              const alertTitle = res.dispatchedByServer
+                ? '✅ Alerta Transmitida por Servidor'
+                : '📨 Mensajería SMS Lista';
               Alert.alert(
-                '✅ Alerta SOS Transmitida',
-                `${deliveryNote}${coordsNotice}\n\nNotificados: ${res.phoneNumbers.join(', ')}.`
+                alertTitle,
+                `${deliveryNote}${coordsNotice}\n\nDestinatarios: ${res.phoneNumbers.join(', ')}.`
               );
             } else {
               Alert.alert('Alerta SOS', res.error || 'Verifica los permisos de GPS en tu dispositivo.');
@@ -148,6 +151,17 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
         },
       ]
     );
+  };
+
+  const handleBack = () => {
+    haptics.light();
+    if (onBackPress) {
+      onBackPress();
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
   };
 
   if (showSosContacts) {
@@ -160,10 +174,10 @@ export function EmergenciesScreen({ onNavigateToSosContacts, onBackPress }: Emer
         {/* Barra Superior Limpia con Emote GPS y Luz Verde/Gris */}
         <View style={styles.topHeaderRow}>
           <Pressable
-            onPress={() => (onBackPress ? onBackPress() : router.push('/(tabs)'))}
+            onPress={handleBack}
             style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
             accessibilityRole="button"
-            accessibilityLabel="Volver a Inicio"
+            accessibilityLabel="Volver"
           >
             <Text style={styles.backBtnText}>←</Text>
           </Pressable>

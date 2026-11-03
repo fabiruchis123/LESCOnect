@@ -12,7 +12,11 @@ import { EditProfileScreen } from './EditProfileScreen';
 import { TextSizeScreen } from './TextSizeScreen';
 import { VibrationScreen } from './VibrationScreen';
 
-export function ProfileScreen() {
+export interface ProfileScreenProps {
+  onBackPress?: () => void;
+}
+
+export function ProfileScreen({ onBackPress }: ProfileScreenProps = {}) {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
@@ -22,6 +26,17 @@ export function ProfileScreen() {
 
   const [currentView, setCurrentView] = useState<'menu' | 'editProfile' | 'textSize' | 'vibration'>('menu');
   const [activeVideo, setActiveVideo] = useState<LescoVideoInfo | null>(null);
+
+  const handleBack = () => {
+    haptics.light();
+    if (onBackPress) {
+      onBackPress();
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
 
   if (currentView === 'editProfile') {
     return <EditProfileScreen onBackPress={() => setCurrentView('menu')} />;
@@ -61,6 +76,22 @@ export function ProfileScreen() {
 
       {/* MENÚ DE PERFIL PRINCIPAL */}
       <ScrollView contentContainerStyle={profileStyles.scrollContainer} showsVerticalScrollIndicator={false}>
+        {/* Barra Superior con botón Volver si se invocó con onBackPress */}
+        {onBackPress && (
+          <View style={profileStyles.topNavRow}>
+            <TouchableOpacity
+              onPress={handleBack}
+              style={profileStyles.backBtn}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Volver"
+            >
+              <Text style={profileStyles.backBtnText}>←</Text>
+            </TouchableOpacity>
+            <Text style={profileStyles.backBtnLabel}>Volver</Text>
+          </View>
+        )}
+
         {/* Título Superior */}
         <View style={profileStyles.headerBox}>
           <Text style={[profileStyles.mainTitle, { fontSize: Math.round(28 * fontScale) }]}>Perfil</Text>
@@ -232,6 +263,34 @@ const profileStyles = StyleSheet.create({
   },
   headerBox: {
     marginBottom: Spacing.md,
+  },
+  topNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    gap: 8,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#EAE0D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.subtle,
+  },
+  backBtnText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2B241C',
+  },
+  backBtnLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#7A6E5C',
+    flex: 1,
   },
   mainTitle: {
     fontSize: 28,

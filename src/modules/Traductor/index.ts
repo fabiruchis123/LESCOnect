@@ -10,4 +10,5 @@ export * from './services/lescoGrammarCoherenceService';
 export * from './services/lescoAlphabetTrainerService';
 export * from './services/lescoKeypointPipelineService';
 export * from './services/cenarecDictionaryService';
+export * from './services/lescoUnifiedRecognitionService';
 export * from './components/LescoAvatar3DInterpreter';

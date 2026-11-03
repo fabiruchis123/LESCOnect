@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuthStore, User, SosContactItem } from '@/shared/stores/useAuthStore';
 import { LescoVideoModal, type LescoVideoInfo } from '@/shared/components';
 import { haptics } from '@/shared/utils/haptics';
@@ -36,6 +36,7 @@ function formatPhoneOrCedulaInput(raw: string): string {
 }
 
 export function SignupScreen({ onSuccess, initialMode = 'signup' }: SignupScreenProps) {
+  const router = useRouter();
   const login = useAuthStore((state) => state.login);
   const existingUser = useAuthStore((state) => state.user);
   const findRegisteredUser = useAuthStore((state) => state.findRegisteredUser);
@@ -73,6 +74,8 @@ export function SignupScreen({ onSuccess, initialMode = 'signup' }: SignupScreen
   const [otpTargetPhone, setOtpTargetPhone] = useState('');
   const [otpTargetName, setOtpTargetName] = useState('');
   const pendingOtpCallbackRef = useRef<((res: OtpVerifyResult) => void) | null>(null);
+  const lastVerifiedOtpResultRef = useRef<OtpVerifyResult | null>(null);
+  const lastVerifiedPhoneRef = useRef<string>('');
 
   // Bloquear el botón 'Atrás' para que no regrese al video omitido
   useFocusEffect(
@@ -91,9 +94,11 @@ export function SignupScreen({ onSuccess, initialMode = 'signup' }: SignupScreen
       setIsLoading(false);
       if (onSuccess) {
         onSuccess();
+      } else {
+        router.replace('/(tabs)');
       }
     },
-    [login, onSuccess]
+    [login, onSuccess, router]
   );
 
   const buildUserFromSignup = (values: SignupFormValues, userId?: string): User => {
@@ -177,7 +182,9 @@ export function SignupScreen({ onSuccess, initialMode = 'signup' }: SignupScreen
   ) => {
     setOtpTargetPhone(phoneToVerify);
     setOtpTargetName(userName);
-    pendingOtpCallbackRef.current = () => {
+    pendingOtpCallbackRef.current = (res) => {
+      lastVerifiedOtpResultRef.current = res;
+      lastVerifiedPhoneRef.current = phoneToVerify;
       onVerifiedSuccess();
     };
     setOtpModalVisible(true);
@@ -190,6 +197,8 @@ export function SignupScreen({ onSuccess, initialMode = 'signup' }: SignupScreen
       setOtpTargetPhone(values.phone);
       setOtpTargetName(values.name);
       pendingOtpCallbackRef.current = (otpRes) => {
+        lastVerifiedOtpResultRef.current = otpRes;
+        lastVerifiedPhoneRef.current = values.phone;
         const userObj = buildUserFromSignup(values, otpRes.supabaseUserId);
         finalizeSessionLogin(
           userObj,
@@ -200,9 +209,21 @@ export function SignupScreen({ onSuccess, initialMode = 'signup' }: SignupScreen
       return;
     }
 
-    // Si ya verificó el teléfono o no ingresó teléfono, completar registro directo
-    const userObj = buildUserFromSignup(values);
-    finalizeSessionLogin(userObj, 'token-lesconect-persistent');
+    // Si ya verificó el teléfono o no ingresó teléfono, completar registro directo reutilizando credenciales si aplica
+    const isMatchedVerified =
+      lastVerifiedPhoneRef.current &&
+      validateCRPhone(lastVerifiedPhoneRef.current).digits ===
+        validateCRPhone(values.phone).digits;
+
+    const priorUserId = isMatchedVerified
+      ? lastVerifiedOtpResultRef.current?.supabaseUserId
+      : undefined;
+    const priorToken = isMatchedVerified
+      ? lastVerifiedOtpResultRef.current?.token
+      : undefined;
+
+    const userObj = buildUserFromSignup(values, priorUserId);
+    finalizeSessionLogin(userObj, priorToken || 'token-lesconect-persistent');
   };
 
   // Reconstruye el perfil completo al completar la verificación por SMS

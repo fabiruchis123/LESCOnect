@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Modal,
   Platform,
@@ -98,32 +99,54 @@ export function SmsOtpVerificationModal({
     return () => loop.stop();
   }, [visible, pulseAnim]);
 
-  // Rellenado progresivo animado de las 6 casillas para que el usuario vea cómo se completan solas
-  const triggerSmoothAutoFill = useCallback((targetCode: string) => {
-    if (!targetCode || targetCode.length !== 6) return;
-    if (autoFillIntervalRef.current) {
-      clearInterval(autoFillIntervalRef.current);
-      autoFillIntervalRef.current = null;
-    }
-    haptics.medium();
-    setIsAutoFilling(true);
-    setAutoFillCountdown(null);
-    setErrorMsg(null);
+  // Autocompletado instantáneo y limpio al pulsar el chip/botón (sin comerse el 0 ni alterar el orden)
+  const handleInstantAutoFill = useCallback(
+    (targetCode: string) => {
+      if (isVerifying || isVerifiedSuccess) return;
+      clearPendingTimers();
+      const clean = String(targetCode || '').replace(/\D/g, '').slice(0, 6);
+      if (clean.length !== 6) return;
+      setIsAutoFilling(false);
+      setAutoFillCountdown(null);
+      setErrorMsg(null);
+      setCode(clean);
+      haptics.medium();
+    },
+    [clearPendingTimers, isVerifying, isVerifiedSuccess]
+  );
 
-    let step = 1;
-    autoFillIntervalRef.current = setInterval(() => {
-      setCode(targetCode.slice(0, step));
-      haptics.light();
-      step += 1;
-      if (step > 6) {
-        if (autoFillIntervalRef.current) {
-          clearInterval(autoFillIntervalRef.current);
-          autoFillIntervalRef.current = null;
-        }
-        setIsAutoFilling(false);
+  // Rellenado progresivo animado de las 6 casillas sin comerse ceros ni alterar el orden
+  const triggerSmoothAutoFill = useCallback(
+    (targetCode: string) => {
+      if (isVerifying || isVerifiedSuccess) return;
+      const clean = String(targetCode || '').replace(/\D/g, '').slice(0, 6);
+      if (clean.length !== 6) return;
+      if (autoFillIntervalRef.current) {
+        clearInterval(autoFillIntervalRef.current);
+        autoFillIntervalRef.current = null;
       }
-    }, 95);
-  }, []);
+      haptics.medium();
+      setIsAutoFilling(true);
+      setAutoFillCountdown(null);
+      setErrorMsg(null);
+
+      let step = 1;
+      autoFillIntervalRef.current = setInterval(() => {
+        setCode(clean.slice(0, step));
+        haptics.light();
+        step += 1;
+        if (step > 6) {
+          if (autoFillIntervalRef.current) {
+            clearInterval(autoFillIntervalRef.current);
+            autoFillIntervalRef.current = null;
+          }
+          setCode(clean);
+          setIsAutoFilling(false);
+        }
+      }, 75);
+    },
+    [isVerifying, isVerifiedSuccess]
+  );
 
   // Solicitar el código SMS y activar recepción asistida
   const requestOtpCode = useCallback(
@@ -135,6 +158,7 @@ export function SmsOtpVerificationModal({
       setAutoFillCountdown(null);
       setIsAutoFilling(false);
       setIsVerifiedSuccess(false);
+      setIsVerifying(false);
       lastVerifiedCodeRef.current = '';
       setIsReceivingSms(true);
       bannerAnim.setValue(0);
@@ -183,7 +207,7 @@ export function SmsOtpVerificationModal({
   // Temporizador de cuenta regresiva (~1.5s) para autocompletar automáticamente sin tocar nada
   useEffect(() => {
     if (!visible || autoFillCountdown === null || !incomingCode) return;
-    if (code.length > 0 || isAutoFilling || isVerifiedSuccess) {
+    if (code.length > 0 || isAutoFilling || isVerifiedSuccess || isVerifying) {
       setAutoFillCountdown(null);
       return;
     }
@@ -205,6 +229,7 @@ export function SmsOtpVerificationModal({
     code.length,
     isAutoFilling,
     isVerifiedSuccess,
+    isVerifying,
     triggerSmoothAutoFill,
   ]);
 
@@ -217,83 +242,54 @@ export function SmsOtpVerificationModal({
     return () => clearInterval(timer);
   }, [visible, resendCooldown]);
 
-  // Validación instantánea sin fricción apenas se completan los 6 dígitos
-  useEffect(() => {
-    if (!visible || code.length !== 6 || isAutoFilling || isVerifying || isVerifiedSuccess) {
-      return;
-    }
-    if (lastVerifiedCodeRef.current === code) {
-      return;
-    }
+  // Manejador del botón "Confirmar código" con spinner y validación segura contra servidor
+  const handleConfirmCode = async () => {
+    const cleanCode = code.replace(/\D/g, '').slice(0, 6);
+    if (cleanCode.length !== 6 || isVerifying || isVerifiedSuccess) return;
 
-    lastVerifiedCodeRef.current = code;
-    let isMounted = true;
+    haptics.light();
+    setIsVerifying(true);
+    setErrorMsg(null);
 
-    const runVerification = async () => {
-      setIsVerifying(true);
-      setErrorMsg(null);
-
-      const verifyRes = await otpService.verifySmsOtp(phone, code);
-      if (!isMounted) return;
-
+    try {
+      const verifyRes = await otpService.verifySmsOtp(phone, cleanCode);
       if (verifyRes.success) {
         setIsVerifying(false);
         setIsVerifiedSuccess(true);
         haptics.success();
 
+        // Éxito: vibración háptica y retorno tras 400ms según requerimiento
         verifiedDelayTimerRef.current = setTimeout(() => {
           verifiedDelayTimerRef.current = null;
-          if (isMounted) {
-            onVerified(verifyRes);
-          }
-        }, 650);
+          onVerified(verifyRes);
+        }, 400);
       } else {
         setIsVerifying(false);
-        setErrorMsg(verifyRes.error || 'Código incorrecto. Verifica los 6 números.');
+        setErrorMsg(verifyRes.error || 'Código incorrecto. Te quedan intentos.');
         haptics.warning();
       }
-    };
-
-    runVerification();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [code, visible, isAutoFilling, isVerifying, isVerifiedSuccess, phone, onVerified]);
-
-  const handleManualConfirm = async () => {
-    if (code.length < 6 || isVerifying || isVerifiedSuccess) return;
-    haptics.light();
-    setIsVerifying(true);
-    setErrorMsg(null);
-    lastVerifiedCodeRef.current = code;
-
-    const verifyRes = await otpService.verifySmsOtp(phone, code);
-    if (verifyRes.success) {
+    } catch {
       setIsVerifying(false);
-      setIsVerifiedSuccess(true);
-      haptics.success();
-      setTimeout(() => {
-        onVerified(verifyRes);
-      }, 500);
-    } else {
-      setIsVerifying(false);
-      setErrorMsg(verifyRes.error || 'Código incorrecto. Verifica los 6 números.');
+      setErrorMsg('Error de conexión con el servidor. Intenta de nuevo.');
       haptics.warning();
     }
   };
 
   const handleCodeChange = (rawText: string) => {
+    if (isVerifying || isVerifiedSuccess) return;
+    if (isAutoFilling && autoFillIntervalRef.current) {
+      clearInterval(autoFillIntervalRef.current);
+      autoFillIntervalRef.current = null;
+      setIsAutoFilling(false);
+    }
     setAutoFillCountdown(null);
     const extracted = extractOtpFromText(rawText);
     setCode(extracted);
     if (errorMsg) setErrorMsg(null);
-    if (extracted.length < 6) {
-      lastVerifiedCodeRef.current = '';
-    }
   };
 
   const focusMasterInput = () => {
+    if (isVerifying || isVerifiedSuccess) return;
     haptics.light();
     inputRef.current?.focus();
   };
@@ -329,7 +325,8 @@ export function SmsOtpVerificationModal({
             </View>
 
             <TouchableOpacity
-              style={modalStyles.closeBtn}
+              style={[modalStyles.closeBtn, isVerifying && { opacity: 0.5 }]}
+              disabled={isVerifying}
               onPress={() => {
                 haptics.light();
                 onClose();
@@ -413,18 +410,24 @@ export function SmsOtpVerificationModal({
                 ) : null}
               </View>
 
-              {/* Botón gigante de 1 toque para autocompletar de inmediato */}
+              {/* Botón de 1 toque para autocompletar de inmediato sin perder dígitos */}
               <TouchableOpacity
-                style={modalStyles.autoFillGiantBtn}
-                onPress={() => triggerSmoothAutoFill(incomingCode)}
+                style={[
+                  modalStyles.autoFillGiantBtn,
+                  (isVerifying || isVerifiedSuccess) && { opacity: 0.5 },
+                ]}
+                onPress={() => handleInstantAutoFill(incomingCode)}
+                disabled={isVerifying || isVerifiedSuccess}
                 activeOpacity={0.85}
                 accessibilityRole="button"
                 accessibilityLabel={`Autocompletar código ${incomingCode} ahora`}
               >
                 <Text style={{ fontSize: 18 }}>✨</Text>
                 <Text style={modalStyles.autoFillGiantBtnText}>
-                  {isAutoFilling
-                    ? 'Escribiendo código automáticamente...'
+                  {code.length === 6 && code === incomingCode
+                    ? `Código (${incomingCode}) completado ✓`
+                    : isAutoFilling
+                    ? 'Escribiendo código...'
                     : `Autocompletar código (${incomingCode}) ahora`}
                 </Text>
               </TouchableOpacity>
@@ -442,6 +445,7 @@ export function SmsOtpVerificationModal({
             textContentType="oneTimeCode"
             importantForAutofill="yes"
             caretHidden
+            editable={!isVerifying && !isVerifiedSuccess}
             style={modalStyles.hiddenMasterInput}
             accessibilityLabel="Código de verificación de 6 dígitos"
           />
@@ -450,14 +454,15 @@ export function SmsOtpVerificationModal({
           <TouchableOpacity
             style={modalStyles.otpBoxesRow}
             onPress={focusMasterInput}
+            disabled={isVerifying || isVerifiedSuccess}
             activeOpacity={0.9}
             accessibilityRole="button"
             accessibilityLabel="Tocar para abrir el teclado numérico"
           >
             {[0, 1, 2, 3, 4, 5].map((index) => {
-              const digit = code[index] || '';
-              const isCurrentFocus = code.length === index && !isVerifiedSuccess;
-              const isFilled = Boolean(digit);
+              const digit = code[index] ?? '';
+              const isCurrentFocus = code.length === index && !isVerifiedSuccess && !isVerifying;
+              const isFilled = digit !== '';
 
               return (
                 <View
@@ -484,7 +489,7 @@ export function SmsOtpVerificationModal({
             })}
           </TouchableOpacity>
 
-          {/* Estado de verificación o éxito visual */}
+          {/* Estado de verificación, error o guía visual */}
           {isVerifiedSuccess ? (
             <View style={modalStyles.successBanner}>
               <Text style={{ fontSize: 20 }}>✅</Text>
@@ -492,58 +497,67 @@ export function SmsOtpVerificationModal({
                 ¡Código verificado correctamente! Entrando a LESCOnect...
               </Text>
             </View>
-          ) : isVerifying ? (
-            <View style={modalStyles.verifyingBanner}>
-              <Text style={{ fontSize: 18 }}>⏳</Text>
-              <Text style={modalStyles.verifyingBannerText}>
-                Comprobando código automáticamente...
-              </Text>
-            </View>
           ) : errorMsg ? (
             <View style={modalStyles.errorBanner}>
               <Text style={{ fontSize: 16 }}>⚠️</Text>
               <Text style={modalStyles.errorBannerText}>{errorMsg}</Text>
             </View>
+          ) : code.length === 6 ? (
+            <View style={modalStyles.readyHintBanner}>
+              <Text style={{ fontSize: 15 }}>👆</Text>
+              <Text style={modalStyles.readyHintBannerText}>
+                Presiona &quot;Confirmar código&quot; para entrar
+              </Text>
+            </View>
           ) : (
             <Text style={modalStyles.helperHint}>
-              💡 Se valida automáticamente al completar los 6 números
+              💡 Completa los 6 números para habilitar la confirmación
             </Text>
           )}
 
-          {/* Botón Principal para Confirmar y Entrar */}
+          {/* Botón Principal para Confirmar Código con Spinner accesible */}
           <TouchableOpacity
             style={[
               modalStyles.confirmVerifyBtn,
-              code.length < 6 && modalStyles.confirmVerifyBtnDisabled,
+              (code.length < 6 || isVerifying) && modalStyles.confirmVerifyBtnDisabled,
+              code.length === 6 && !isVerifying && !isVerifiedSuccess && modalStyles.confirmVerifyBtnReady,
               isVerifiedSuccess && modalStyles.confirmVerifyBtnSuccess,
             ]}
             disabled={code.length < 6 || isVerifying || isVerifiedSuccess}
-            onPress={handleManualConfirm}
+            onPress={handleConfirmCode}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Confirmar código y entrar a la aplicación"
+            accessibilityLabel="Confirmar código"
           >
-            <Text style={modalStyles.confirmVerifyBtnText}>
-              {isVerifiedSuccess
-                ? '✅ Código Verificado — Entrando...'
-                : isVerifying
-                ? '⏳ Validando con el Servidor...'
-                : code.length === 6
-                ? 'Confirmar y Entrar →'
-                : `Ingresa los 6 números (${code.length}/6)`}
-            </Text>
+            {isVerifying ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : isVerifiedSuccess ? (
+              <Text style={modalStyles.confirmVerifyBtnText}>✅ ¡Código verificado!</Text>
+            ) : (
+              <Text
+                style={[
+                  modalStyles.confirmVerifyBtnText,
+                  code.length === 6 && modalStyles.confirmVerifyBtnTextReady,
+                ]}
+              >
+                Confirmar código
+              </Text>
+            )}
           </TouchableOpacity>
 
           {/* Controles Auxiliares: Teclado Manual / Limpiar / Reenviar */}
           <View style={modalStyles.footerActionsRow}>
             <TouchableOpacity
-              style={modalStyles.secondaryActionBtn}
+              style={[
+                modalStyles.secondaryActionBtn,
+                (isVerifying || isVerifiedSuccess) && { opacity: 0.5 },
+              ]}
+              disabled={isVerifying || isVerifiedSuccess}
               onPress={() => {
                 if (code.length > 0) {
                   haptics.light();
                   setCode('');
                   setErrorMsg(null);
-                  lastVerifiedCodeRef.current = '';
                   inputRef.current?.focus();
                 } else {
                   focusMasterInput();
@@ -560,9 +574,10 @@ export function SmsOtpVerificationModal({
             <TouchableOpacity
               style={[
                 modalStyles.resendActionBtn,
-                resendCooldown > 0 && modalStyles.resendActionBtnDisabled,
+                (resendCooldown > 0 || isReceivingSms || isVerifying || isVerifiedSuccess) &&
+                  modalStyles.resendActionBtnDisabled,
               ]}
-              disabled={resendCooldown > 0 || isReceivingSms}
+              disabled={resendCooldown > 0 || isReceivingSms || isVerifying || isVerifiedSuccess}
               onPress={() => {
                 haptics.light();
                 requestOtpCode(true);
@@ -573,7 +588,8 @@ export function SmsOtpVerificationModal({
               <Text
                 style={[
                   modalStyles.resendActionText,
-                  resendCooldown > 0 && modalStyles.resendActionTextDisabled,
+                  (resendCooldown > 0 || isReceivingSms || isVerifying || isVerifiedSuccess) &&
+                    modalStyles.resendActionTextDisabled,
                 ]}
               >
                 {resendCooldown > 0
@@ -807,6 +823,13 @@ const modalStyles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  confirmVerifyBtnReady: {
+    backgroundColor: '#B5551A',
+    shadowColor: '#B5551A',
+    shadowOpacity: 0.38,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   confirmVerifyBtnSuccess: {
     backgroundColor: '#2E7D32',
   },
@@ -815,6 +838,9 @@ const modalStyles = StyleSheet.create({
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.3,
+  },
+  confirmVerifyBtnTextReady: {
+    color: '#FFFFFF',
   },
   hiddenMasterInput: {
     position: 'absolute',
@@ -899,6 +925,24 @@ const modalStyles = StyleSheet.create({
     fontWeight: '900',
     color: '#2B241C',
     flexShrink: 1,
+  },
+  readyHintBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3EADA',
+    borderWidth: 1,
+    borderColor: '#E6B08A',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+    gap: 8,
+  },
+  readyHintBannerText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#B5551A',
   },
   verifyingBanner: {
     flexDirection: 'row',

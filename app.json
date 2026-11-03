@@ -27,6 +27,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
+        "INTERNET",
         "CAMERA",
         "VIBRATE",
         "ACCESS_FINE_LOCATION",
