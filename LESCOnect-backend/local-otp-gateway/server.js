@@ -53,6 +53,7 @@ const SIM_GATEWAY_URL = process.env.SIM_GATEWAY_URL || ''; // ej. 'http://192.16
 const SIM_GATEWAY_USER = process.env.SIM_GATEWAY_USER || '';
 const SIM_GATEWAY_PASSWORD = process.env.SIM_GATEWAY_PASSWORD || '';
 const SIM_GATEWAY_TIMEOUT_MS = parseInt(process.env.SIM_GATEWAY_TIMEOUT_MS || '15000', 10);
+const SIM_NUMBER = parseInt(process.env.SIM_NUMBER || '2', 10); // 1 = Liberty, 2 = Kölbi ICE
 
 // Almacén en memoria de códigos activos para pruebas locales
 const activeOtps = new Map();
@@ -124,7 +125,7 @@ async function initWhatsApp() {
 // ----------------------------------------------------------------------------
 // DISPATCHER: ENVÍO VÍA SIM FÍSICA ANDROID (Capcom6 / Termux)
 // ----------------------------------------------------------------------------
-async function sendSmsViaPhysicalSim(phoneE164, message) {
+async function sendSmsViaPhysicalSim(phoneE164, message, targetSimNumber) {
   if (!SIM_GATEWAY_URL) {
     return { ok: false, error: 'SIM_GATEWAY_URL no configurada' };
   }
@@ -137,11 +138,16 @@ async function sendSmsViaPhysicalSim(phoneE164, message) {
 
       // Estructura compatible con Capcom6 android-sms-gateway API
       // Admite tanto 'phoneNumbers': [phone] como 'message': text
-      const payload = JSON.stringify({
+      const sim = targetSimNumber || SIM_NUMBER;
+      const payloadObj = {
         phoneNumbers: [phoneE164],
         phone: phoneE164,
         message: message,
-      });
+      };
+      if (sim) {
+        payloadObj.simNumber = sim;
+      }
+      const payload = JSON.stringify(payloadObj);
 
       // Ruta estándar de envío de mensajes en Capcom6 SMS Gateway
       const pathname = urlObj.pathname && urlObj.pathname !== '/'
@@ -240,6 +246,7 @@ app.get('/api/status', async (req, res) => {
     mode: GATEWAY_MODE,
     simGateway: {
       status: simStatus,
+      defaultSimNumber: SIM_NUMBER,
       url: SIM_GATEWAY_URL ? SIM_GATEWAY_URL.replace(/:\/\/.*@/, '://***@') : null,
       authConfigured: Boolean(SIM_GATEWAY_USER && SIM_GATEWAY_PASSWORD),
     },
@@ -260,7 +267,7 @@ app.post('/api/send-otp', async (req, res) => {
     return res.status(401).json({ success: false, error: 'No autorizado' });
   }
 
-  const { phone, code: clientProvidedCode } = req.body;
+  const { phone, code: clientProvidedCode, simNumber: reqSimNumber } = req.body;
   if (!phone) {
     return res.status(400).json({ success: false, error: 'Número de teléfono requerido' });
   }
